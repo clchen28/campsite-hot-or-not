@@ -45,10 +45,6 @@ class RawNOAAWeatherProducer:
         except:
             return None
         
-        if WBAN == 99999:
-            WBAN = None
-        if USAF == 99999:
-            USAF = None
         if temp > 70 or temp < -70:
             return None
         
