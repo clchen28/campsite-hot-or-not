@@ -139,11 +139,16 @@ public class App {
     public final static class RawNOAAToTuple implements MapFunction<String,
             Tuple3<Double, Double, Double>> {
 
-        private static HashMap<String, Location> stationLocations;
+        private HashMap<String, Location> stationLocations;
 
         public RawNOAAToTuple(HashMap<String, Location> stations) throws Exception {
             stationLocations = stations;
         }
+
+        /* FIXME: Getting a NullPointerException on the getStationLocation call. Is this due to
+                  USAF and WBAN being wrong? or is this due to something else? Have verified that
+                  the desired key exists in the JSON file...
+         */
 
         private String parseUSAF(String rawData) {
             return rawData.substring(4, 10);
@@ -168,7 +173,7 @@ public class App {
         private Location getStationLocation(String rawData) {
             String USAF = parseUSAF(rawData);
             String WBAN = parseWBAN(rawData);
-            return stationLocations.get(USAF + "|" + WBAN);
+            return this.stationLocations.get(USAF + "|" + WBAN);
         }
 
         public Tuple3<Double, Double, Double> map(String lineFromS3) {
