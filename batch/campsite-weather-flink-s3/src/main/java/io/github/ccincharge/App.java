@@ -75,6 +75,7 @@ public class App {
                 new TypeReference<HashMap<String, Location>>(){});
 
         rawDataSource.map(new RawNOAAToTuple(stationLocations)).print();
+        env.execute();
 
         /*
         // get input data
