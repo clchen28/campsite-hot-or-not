@@ -6,6 +6,7 @@ from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, IntegerType, FloatType
 
 # FIXME: For invalid data, should fail gracefully and simply not process that value
 
@@ -81,8 +82,8 @@ def map_station_id_to_location(data):
     lon = float(location.get("lon", None))
     event_time = parse_time(data)
     temp = parse_temp(data)
-
-    return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
+    return (event_time, lat, lon, temp)
+    # return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
@@ -97,9 +98,15 @@ if __name__ == '__main__':
     spark = SparkSession(sc)
     s3_bucket = config.get("s3", "bucket_url")
 
+    schema = StructType([
+        StructField("event_time", IntegerType(), True),
+        StructField("lat", FloatType(), True),
+        StructField("lon", FloatType(), True),
+        StructField("temp", FloatType(), True)])
+
     # TODO: Don't hardcode one object
     # Returns an RDD of strings
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
     
     # Transform station id's to locations
-    raw_data.map(map_station_id_to_location).toDF().foreach(print)
+    raw_data.map(map_station_id_to_location).toDF().show()
