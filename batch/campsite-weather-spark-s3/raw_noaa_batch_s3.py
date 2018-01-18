@@ -37,14 +37,14 @@ def parse_WBAN(data):
     '''
     return data[10:15]
 
-def parse_time(data):
+#def parse_time(data):
     '''
     Takes raw data from S3 and parses out observation time
     :param data: Raw string data from S3
     :returns:    Datetime object of the observation time
     '''
-    raw_date_time = data[15:23] + ' ' + data[23:37]
-    return datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
+ #   raw_date_time = data[15:23] + ' ' + data[23:37]
+  #  return datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
 
 def parse_temp(data):
     '''
@@ -73,7 +73,8 @@ def map_station_id_to_location(data):
                  exists, None otherwise
     '''
     lat, lon = get_station_location(data)
-    return ((parse_time(data), lat, lon), parse_temp(data))
+    #return ((parse_time(data), lat, lon), parse_temp(data))
+    return ((lat, lon), parse_temp(data))
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
