@@ -5,6 +5,7 @@ import datetime
 from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
+from pyspark.sql import SparkSession
 
 # FIXME: For invalid data, should fail gracefully and simply not process that value
 
@@ -80,6 +81,7 @@ def map_station_id_to_location(data):
     lon = float(location.get("lon", None))
     event_time = parse_time(data)
     temp = parse_temp(data)
+
     return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
 
 if __name__ == '__main__':
@@ -92,6 +94,7 @@ if __name__ == '__main__':
     # SparkContext represents entry point to Spark cluster
     # Automatically determines master
     sc = SparkContext(appName="LocationStreamConsumer")
+    spark = SparkSession(sc)
     s3_bucket = config.get("s3", "bucket_url")
 
     # TODO: Don't hardcode one object
