@@ -82,8 +82,7 @@ def map_station_id_to_location(data):
     lon = float(location.get("lon", None))
     event_time = parse_time(data)
     temp = parse_temp(data)
-    return (event_time, lat, lon, temp)
-    # return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
+    return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
@@ -97,12 +96,6 @@ if __name__ == '__main__':
     sc = SparkContext(appName="LocationStreamConsumer")
     spark = SparkSession(sc)
     s3_bucket = config.get("s3", "bucket_url")
-
-    schema = StructType([
-        StructField("event_time", IntegerType(), True),
-        StructField("lat", FloatType(), True),
-        StructField("lon", FloatType(), True),
-        StructField("temp", FloatType(), True)])
 
     # TODO: Don't hardcode one object
     # Returns an RDD of strings
