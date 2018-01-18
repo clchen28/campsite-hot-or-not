@@ -47,7 +47,7 @@ def parse_time(data):
     raw_date_time = data[15:23] + ' ' + data[23:27]
     date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
     unix_time = date_time.replace(tzinfo=timezone('UTC')).timestamp()
-    return int(unix_time.timestamp())
+    return int(unix_time)
 
 def parse_temp(data):
     '''
