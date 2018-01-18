@@ -2,6 +2,7 @@ import sys
 import json
 import configparser
 import datetime
+from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
 
@@ -37,14 +38,17 @@ def parse_WBAN(data):
     '''
     return data[10:15]
 
-#def parse_time(data):
+def parse_time(data):
     '''
     Takes raw data from S3 and parses out observation time
     :param data: Raw string data from S3
-    :returns:    Datetime object of the observation time
+    :returns:    Int, UNIX timestamp
     '''
- #   raw_date_time = data[15:23] + ' ' + data[23:37]
-  #  return datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
+    raw_date_time = data[15:23] + ' ' + data[23:37]
+    date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
+                .timestamp()
+    unix_time = new_date = date_time.replace(tzinfo=timezone('UTC'))
+    return int(unix_time.timestamp())
 
 def parse_temp(data):
     '''
@@ -73,10 +77,11 @@ def map_station_id_to_location(data):
                  exists, None otherwise
     '''
     location = get_station_location(data)
-    lat = location.get("lat", None)
-    lon = location.get("lon", None)
-    #return ((parse_time(data), lat, lon), parse_temp(data))
-    return ((lat, lon), parse_temp(data))
+    lat = float(location.get("lat", None))
+    lon = float(location.get("lon", None))
+    event_time = parse_time(data)
+    temp = parse_temp(data)
+    return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
