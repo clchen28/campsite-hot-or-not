@@ -99,4 +99,4 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
     
     # Transform station id's to locations
-    raw_data.map(map_station_id_to_location).foreach(print)
+    raw_data.map(map_station_id_to_location).toDF().foreach(print)
