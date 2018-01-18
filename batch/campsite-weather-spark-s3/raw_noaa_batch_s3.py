@@ -44,10 +44,9 @@ def parse_time(data):
     :param data: Raw string data from S3
     :returns:    Int, UNIX timestamp
     '''
-    raw_date_time = data[15:23] + ' ' + data[23:37]
+    raw_date_time = data[15:23] + ' ' + data[23:27]
     date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
-                .timestamp()
-    unix_time = new_date = date_time.replace(tzinfo=timezone('UTC'))
+    unix_time = new_date = date_time.replace(tzinfo=timezone('UTC')).timestamp()
     return int(unix_time.timestamp())
 
 def parse_temp(data):
