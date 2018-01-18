@@ -54,7 +54,7 @@ def parse_temp(data):
     '''
     return float(data[87:92]) / 10.0
 
-def get_station_location(data, station_locations):
+def get_station_location(data):
     '''
     Takes raw data from S3 and parses out tuple of weather station location
     :param data: Raw string data from S3
@@ -63,7 +63,7 @@ def get_station_location(data, station_locations):
     '''
     USAF = parse_USAF(data)
     WBAN = parse_WBAN(data)
-    return station_locations.get(USAF + "|" + WBAN, None)
+    return STATION_LOCATIONS.get(USAF + "|" + WBAN, None)
 
 def map_station_id_to_location(data):
     '''
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     config.read("s3_spark.cfg")
 
     # Make dict of station locations available to all nodes
-    station_locations = get_station_locations_from_file("stations_latlon.json")
+    STATION_LOCATIONS = get_station_locations_from_file("stations_latlon.json")
 
     # SparkContext represents entry point to Spark cluster
     # Automatically determines master
