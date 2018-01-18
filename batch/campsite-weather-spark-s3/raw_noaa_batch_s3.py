@@ -72,7 +72,9 @@ def map_station_id_to_location(data):
     :returns:    Tuple with values (lat, lon) weather station location data
                  exists, None otherwise
     '''
-    lat, lon = get_station_location(data)
+    location = get_station_location(data)
+    lat = location.get("lat", None)
+    lon = location.get("lon", None)
     #return ((parse_time(data), lat, lon), parse_temp(data))
     return ((lat, lon), parse_temp(data))
 
