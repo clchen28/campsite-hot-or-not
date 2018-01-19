@@ -95,6 +95,8 @@ if __name__ == '__main__':
     # Automatically determines master
     sc = SparkContext(appName="LocationStreamConsumer")
     spark = SparkSession(sc)
+    conf = SparkConf().set("spark.cassandra.connection.host",
+        config.get("cassandra_cluster", "host"))
     s3_bucket = config.get("s3", "bucket_url")
 
     # TODO: Don't hardcode one object
