@@ -44,12 +44,12 @@ def parse_time(data):
     '''
     Takes raw data from S3 and parses out observation time
     :param data: Raw string data from S3
-    :returns:    Int, UNIX timestamp
+    :returns:    Int, milliseconds after UNIX epoch
     '''
     raw_date_time = data[15:23] + ' ' + data[23:27]
     date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
     unix_time = date_time.replace(tzinfo=timezone('UTC')).timestamp()
-    return int(unix_time)
+    return int(unix_time) * 1000
 
 def parse_temp(data):
     '''
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     # TODO: Don't hardcode one object
     # Returns an RDD of strings
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
-    
+
     # Transform station id's to locations
     raw_data.map(map_station_id_to_location).toDF()\
     .write\
