@@ -55,7 +55,7 @@ Ingestion Choice: **Kafka**. For any application that is related to IoT, it can 
 - Flink
 - Storm
 
-Computation choice: **Flink**. Both Spark and Flink are unified processing frameworks, but are built with different mindsets. Spark is primarily a batch-oriented framework, and views streaming as a batch process over a small period of time (e.g. 1 s). Flink is focused on truly real-time processing, and views batch processing as a special case of stream processing (bounded stream processing). Flink has higher throughput than Spark as a direct result of how it's architected. One possible way that this project could scale up is if more IoT technologies are used - we can imagine that mobile phones can be used as ad-hoc weather sensors, and users may be issuing requests for many different locations. Flink would help scale up to handle this type of use case. Additionally, using one common tool helps to reduce the complexity of the codebase - the batch and streaming portions of the pipeline can reuse much of the same code.
+Computation choice: **Spark**. Both Spark and Flink are unified processing frameworks, but are built with different mindsets. Spark is primarily a batch-oriented framework, and views streaming as a batch process over a small period of time (e.g. 1 s). Flink is focused on truly real-time processing, and views batch processing as a special case of stream processing (bounded stream processing). Flink has lower latency than Spark, but for this application, achieving a minute decrease in latency for the computations will not affect our results much, and the results are not mission critical. Additionally, using one common tool helps to reduce the complexity of the codebase - the batch and streaming portions of the pipeline can reuse much of the same code.
 
 #### Databases
 ##### Analytics Database
@@ -72,8 +72,14 @@ Analytics database choice: **Cassandra**. One challenge is going to be to find t
 
 Cache choice: **Redis**. Memcached is great for caching small datasets or static datasets. Redis can store data structures that map to a key. This can be used to store the latest data that has arrived from a given weather station, and subsequent requests for data can simply scan these data structures for the nearest nodes as opposed to querying the database.
 
+## Engineering Challenge
+The selected implementation of the IDW Average algorithm presents an engineering challenge. This algorithm is two steps - finding the k nearest nodes from a campsite, and then calculating the weighted average. The brute force method of doing this is to, for each campsite and historical time, calculate the distance to all weather stations that have data available at that time, and then choose the 5 that have the shortest distance. There are also ways to optimize this algorithm.
+
+Another way to solve this is to use some type of data structure that will efficiently find the k nearest neighbors, such as a KD-tree. This would be a quite complex way to solve this problem very efficiently.
+
 ## Architecture
-S3 -> Kafka -> Flink -> Cassandra for batch.
-API/Live Data/User Requests -> Kafka -> Flink -> Cassandra for real-time.
+S3 -> Kafka -> Spark -> Cassandra for batch.
+
+API/Live Data/User Requests -> Kafka -> Spark -> Cassandra for real-time.
 
 The last available weather station data can be cached in Redis.
