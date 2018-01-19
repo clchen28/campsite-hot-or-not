@@ -80,9 +80,9 @@ def map_station_id_to_location(data):
     location = get_station_location(data)
     lat = float(location.get("lat", None))
     lon = float(location.get("lon", None))
-    event_time = parse_time(data)
+    measurement_time = parse_time(data)
     temp = parse_temp(data)
-    return {"event_time": event_time, "lat": lat, "lon": lon, "temp": temp}
+    return {"measurement_time": measurement_time, "lat": lat, "lon": lon, "temp": temp}
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
@@ -102,4 +102,9 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
     
     # Transform station id's to locations
-    raw_data.map(map_station_id_to_location).toDF().show()
+    raw_data.map(map_station_id_to_location).toDF()\
+    .write\
+    .format("org.apache.spark.sql.cassandra")\
+    .mode('append')\
+    .options(table="readings", keyspace="weather_stations")\
+    .save()
