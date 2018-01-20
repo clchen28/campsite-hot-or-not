@@ -5,7 +5,8 @@ import datetime
 from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
-from pyspark.sql import SparkSession, window
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import window
 from pyspark.sql.types import StructType, StructField, IntegerType, FloatType
 
 def get_station_locations_from_file(filename):
