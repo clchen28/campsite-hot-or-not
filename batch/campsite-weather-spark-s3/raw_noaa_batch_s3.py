@@ -47,11 +47,11 @@ def parse_time(data):
     '''
     raw_date_time = data[15:23] + ' ' + data[23:27]
     try:
-        date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
-        unix_time = date_time.replace(tzinfo=timezone('UTC')).timestamp()
+        date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")\
+            .replace(tzinfo=timezone('UTC'))
     except:
         return None
-    return int(unix_time) * 1000
+    return date_time
 
 def parse_temp(data):
     '''
@@ -124,14 +124,18 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
 
     # Transform station id's to locations
+    # Group measurements into hourly buckets
     filtered_data = raw_data.map(map_station_id_to_location)\
         .filter(filter_required)\
         .toDF()\
-        .groupBy(window("measurement_time", "30 minutes"))\
-        .show(30)
+        .groupBy(window(timeColumn="measurement_time",
+            windowDuration="60 minutes",
+            startTime="30 minutes"), filtered_data["lat"], filtered_data["lon"]])
 
     # Group measurements into hourly buckets
     # filtered_data.groupBy(window("measurement_time", "30 minutes")).show(30)
+
+    # TODO: Remember to multiply by 1000 again when inserting into cassandra
     '''
     .write\
     .format("org.apache.spark.sql.cassandra")\
