@@ -96,8 +96,7 @@ def filter_required(data):
     :returns:    Boolean, False if any required parameter is not present, True
                  otherwise
     '''
-    if (data.get("location", None) is None
-        or data.get("lat", None) is None
+    if (data.get("lat", None) is None
         or data.get("lon", None) is None
         or data.get("measurement_time", None) is None
         or data.get("temp", None) is None):
@@ -124,16 +123,16 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
 
     # Transform station id's to locations
-    df = raw_data.map(map_station_id_to_location).\
+    df = raw_data.map(map_station_id_to_location)\
         .filter(filter_required)\
         .toDF()\
 
     # Group measurements into hourly buckets
     df.groupBy(window("measurement_time", "30 minutes")).show(30)
-        '''
-        .write\
-        .format("org.apache.spark.sql.cassandra")\
-        .mode('append')\
-        .options(table="readings", keyspace="weather_stations")\
-        .save()
-        '''
+    '''
+    .write\
+    .format("org.apache.spark.sql.cassandra")\
+    .mode('append')\
+    .options(table="readings", keyspace="weather_stations")\
+    .save()
+    '''
