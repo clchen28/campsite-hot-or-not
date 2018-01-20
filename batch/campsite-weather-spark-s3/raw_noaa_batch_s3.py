@@ -7,7 +7,8 @@ from pyspark import SparkContext
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import window
-from pyspark.sql.types import StructType, StructField, IntegerType, FloatType
+from pyspark.sql.types import (StructType, StructField, FloatType,
+                               TimestampType, StringType, ArrayType)
 
 def get_station_locations_from_file(filename):
     '''
@@ -88,7 +89,10 @@ def map_station_id_to_location(data):
     lon = float(location.get("lon", None))
     measurement_time = parse_time(data)
     temp = parse_temp(data)
-    return {"measurement_time": measurement_time, "lat": lat, "lon": lon, "temp": temp}
+    return {"measurement_time": measurement_time,
+        "lat": lat,
+        "lon": lon,
+        "temp": temp}
 
 def filter_required(data):
     '''
@@ -123,14 +127,23 @@ if __name__ == '__main__':
     # Returns an RDD of strings
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
 
-    # Transform station id's to locations
+    # Define schema
+    schema = StructType([
+        StructField("measurement_time", TimestampType(), False),
+        StructField("temp", FloatType(), False),
+        StructField("lat", FloatType(), False),
+        StructField("lon", FloatType(), False)
+    ])
+
+    # Transform station id's to locations and create DataFrame
+    filtered_data = raw_data.map(map_station_id_to_location)
+    df = spark.createDataFrame(filtered_data, schema)
+
     # Group measurements into hourly buckets
-    filtered_data = raw_data.map(map_station_id_to_location)\
-        .filter(filter_required)\
-        .toDF()\
-        .groupBy(window(timeColumn="measurement_time",
+    df.groupBy(window(timeColumn="measurement_time",
             windowDuration="60 minutes",
-            startTime="30 minutes"), filtered_data["lat"], filtered_data["lon"]])
+            startTime="30 minutes"), "lat", "lon")\
+	.mean("temp").show(100)
 
     # Group measurements into hourly buckets
     # filtered_data.groupBy(window("measurement_time", "30 minutes")).show(30)
