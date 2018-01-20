@@ -123,12 +123,12 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
 
     # Transform station id's to locations
-    df = raw_data.map(map_station_id_to_location)\
+    filtered_data = raw_data.map(map_station_id_to_location)\
         .filter(filter_required)\
-        .toDF()\
+        .toDF()
 
     # Group measurements into hourly buckets
-    df.groupBy(window("measurement_time", "30 minutes")).show(30)
+    filtered_data.groupBy(window("measurement_time", "30 minutes")).show(30)
     '''
     .write\
     .format("org.apache.spark.sql.cassandra")\
