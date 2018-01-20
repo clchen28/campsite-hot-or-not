@@ -5,10 +5,8 @@ import datetime
 from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, window
 from pyspark.sql.types import StructType, StructField, IntegerType, FloatType
-
-# FIXME: For invalid data, should fail gracefully and simply not process that value
 
 def get_station_locations_from_file(filename):
     '''
@@ -47,8 +45,11 @@ def parse_time(data):
     :returns:    Int, milliseconds after UNIX epoch
     '''
     raw_date_time = data[15:23] + ' ' + data[23:27]
-    date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
-    unix_time = date_time.replace(tzinfo=timezone('UTC')).timestamp()
+    try:
+        date_time = datetime.datetime.strptime(raw_date_time, "%Y%m%d %H%M")
+        unix_time = date_time.replace(tzinfo=timezone('UTC')).timestamp()
+    except:
+        return None
     return int(unix_time) * 1000
 
 def parse_temp(data):
@@ -57,7 +58,11 @@ def parse_temp(data):
     :param data: Raw string data from S3
     :returns:    Float of temperature reading
     '''
-    return float(data[87:92]) / 10.0
+    try:
+        temp = float(data[87:92]) / 10.0
+    except:
+        return None
+    return temp
 
 def get_station_location(data):
     '''
@@ -84,6 +89,21 @@ def map_station_id_to_location(data):
     temp = parse_temp(data)
     return {"measurement_time": measurement_time, "lat": lat, "lon": lon, "temp": temp}
 
+def filter_required(data):
+    '''
+    Takes RDD of dict and returns False if any required parameter is not present.
+    :param data: RDD of dicts
+    :returns:    Boolean, False if any required parameter is not present, True
+                 otherwise
+    '''
+    if (data.get("location", None) is None
+        or data.get("lat", None) is None
+        or data.get("lon", None) is None
+        or data.get("measurement_time", None) is None
+        or data.get("temp", None) is None):
+        return False
+    return True
+
 if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read("s3_spark.cfg")
@@ -104,9 +124,16 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + "2016-1.txt")
 
     # Transform station id's to locations
-    raw_data.map(map_station_id_to_location).toDF()\
-    .write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="readings", keyspace="weather_stations")\
-    .save()
+    df = raw_data.map(map_station_id_to_location).\
+        .filter(filter_required)\
+        .toDF()\
+
+    # Group measurements into hourly buckets
+    df.groupBy(window("measurement_time", "30 minutes")).show(30)
+        '''
+        .write\
+        .format("org.apache.spark.sql.cassandra")\
+        .mode('append')\
+        .options(table="readings", keyspace="weather_stations")\
+        .save()
+        '''
