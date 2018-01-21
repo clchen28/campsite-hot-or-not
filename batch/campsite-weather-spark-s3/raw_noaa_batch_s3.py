@@ -6,9 +6,9 @@ from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import window
+from pyspark.sql.functions import window, sum
 from pyspark.sql.types import (StructType, StructField, FloatType,
-                               TimestampType, StringType, ArrayType)
+                               TimestampType, IntegerType)
 
 def get_station_locations_from_file(filename):
     '''
@@ -77,6 +77,28 @@ def get_station_location(data):
     WBAN = parse_WBAN(data)
     return STATION_LOCATIONS.get(USAF + "|" + WBAN, None)
 
+def get_dt(data):
+    '''
+    Return the appropriate window time, i.e.,. the time at the middle of the
+    time window that this data set belongs in. Measurements at each weather
+    station are grouped into hourly windows, and time-weighted averages are
+    calculated using data that are half an hour apart from a given time.
+    :param data: Raw string data from S3
+    :returns:    Int, time increment from the window top of the hour for the
+                 time window that this element belongs in
+    '''
+    measurement_time = parse_time(data)
+    window_time = measurement_time
+    if (measurement_time.minute >= 30):
+        window_time = window_time + datetime.timedelta(hours=1)
+        delta_time = 60 - measurement_time.minute
+    else:
+        delta_time = measurement_time.minute
+    if delta_time == 0:
+        delta_time = 0.01
+    return float(delta_time)
+
+
 def map_station_id_to_location(data):
     '''
     Takes raw data from S3 and parses out tuple of weather station location
@@ -88,25 +110,40 @@ def map_station_id_to_location(data):
     lat = float(location.get("lat", None))
     lon = float(location.get("lon", None))
     measurement_time = parse_time(data)
+    delta_time = get_dt(data)
     temp = parse_temp(data)
     return {"measurement_time": measurement_time,
+        "delta_time": delta_time,
         "lat": lat,
         "lon": lon,
         "temp": temp}
 
-def filter_required(data):
+def map_dt_to_weights_and_weightprods(rdd):
     '''
-    Takes RDD of dict and returns False if any required parameter is not present.
-    :param data: RDD of dicts
-    :returns:    Boolean, False if any required parameter is not present, True
-                 otherwise
+    Takes RDD of temperature data at weather stations, and calculates the time
+    weight, as well as the product of the temperature of the time weight and
+    the temperature. Useful for downstream process to calculate time-weighted
+    temperature mean.
+
+    :param rdd: RDD of temperature data at weather stations
+    :returns:   RDD with time weight and time weight * temperature product
     '''
-    if (data.get("lat", None) is None
-        or data.get("lon", None) is None
-        or data.get("measurement_time", None) is None
-        or data.get("temp", None) is None):
-        return False
-    return True
+    weight = abs(1 / float(rdd.get("delta_time")))
+    rdd["weight"] = weight
+    rdd["weight_temp_prod"] = weight * rdd.get("temp")
+    return rdd
+
+def closest_hour(rdd):
+    '''
+    Takes RDD and maps time window to closest hour
+    :param rdd: RDD with time window
+    :returns:   RDD with window mapped to closest hour
+    '''
+    print("HERE!")
+    for i in rdd:
+        print(i)
+    new_time = rdd + datetime.timedelta(minutes=30)
+    return new_time
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
@@ -125,25 +162,37 @@ if __name__ == '__main__':
 
     # TODO: Don't hardcode one object
     # Returns an RDD of strings
-    raw_data = sc.textFile(s3_bucket + "2016-1.txt")
+    # raw_data = sc.textFile(s3_bucket + "2016-1.txt")
+    raw_data = sc.textFile("2015-short.txt")
 
     # Define schema
     schema = StructType([
         StructField("measurement_time", TimestampType(), False),
+        StructField("delta_time", FloatType(), False),
+        StructField("weight", FloatType(), False),
+        StructField("weight_temp_prod", FloatType(), False),
         StructField("temp", FloatType(), False),
         StructField("lat", FloatType(), False),
         StructField("lon", FloatType(), False)
     ])
 
     # Transform station id's to locations and create DataFrame
-    filtered_data = raw_data.map(map_station_id_to_location)
+    filtered_data = raw_data.map(map_station_id_to_location)\
+        .map(map_dt_to_weights_and_weightprods)
     df = spark.createDataFrame(filtered_data, schema)
 
-    # Group measurements into hourly buckets
-    df.groupBy(window(timeColumn="measurement_time",
+    # Group measurements into hourly buckets and calculate sum of products
+    # of weighted temperature and weights
+    df = df.groupBy(window(timeColumn="measurement_time",
             windowDuration="60 minutes",
             startTime="30 minutes"), "lat", "lon")\
-	.mean("temp").show(100)
+        .agg({"weight": "sum", "weight_temp_prod": "sum"})\
+        .printSchema()
+        #.withColumn("time_weighted_temp", df.sum(weight_temp_prod) / df.sum(weight))\
+        
+
+    # Calculate time-weighted average temperatures and closest hour
+    # df.select("window").rdd.map(closest_hour).toDF()
 
     # Group measurements into hourly buckets
     # filtered_data.groupBy(window("measurement_time", "30 minutes")).show(30)
