@@ -174,25 +174,11 @@ if __name__ == '__main__':
     # raw_data = sc.textFile("2015-short.txt")
 
     # Define schema
-    #schema = StructType([
-    #    StructField("measurement_time", TimestampType(), False),
-    #    StructField("delta_time", FloatType(), False),
-    #    StructField("closest_hour", TimestampType(), False),
-    #    StructField("lat", FloatType(), False),
-    #    StructField("lon", FloatType(), False),
-    #    StructField("temp", FloatType(), False),
-    #    StructField("weight", FloatType(), False),
-    #    StructField("weight_temp_prod", FloatType(), False)
-    #])
-
-    # Define schema
     schema = StructType([
-        StructField("closest_hour", TimestampType(), False),
+        StructField("measurement_hour", TimestampType(), False),
         StructField("lat", FloatType(), False),
         StructField("lon", FloatType(), False),
-        StructField("temp", FloatType(), False),
-        StructField("weight", FloatType(), False),
-        StructField("weight_temp_prod", FloatType(), False)
+        StructField("weighted_avg", FloatType(), False)
     ])
 
     # Transform station id's to locations
@@ -208,7 +194,7 @@ if __name__ == '__main__':
 
     # Convert to DataFrame and save to cassandra
 
-    # df = spark.createDataFrame(filtered_data, schema)
+    df = spark.createDataFrame(filtered_data, schema)
         
 
     # Calculate time-weighted average temperatures and closest hour
