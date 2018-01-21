@@ -187,10 +187,12 @@ if __name__ == '__main__':
 
     # Define schema
     schema = StructType([
-        StructField("measurement_hour", TimestampType(), False),
+        StructField("closest_hour", TimestampType(), False),
         StructField("lat", FloatType(), False),
         StructField("lon", FloatType(), False),
-        StructField("weighted_avg", FloatType(), False)
+        StructField("temp", FloatType(), False),
+        StructField("weight", FloatType(), False),
+        StructField("weight_temp_prod", FloatType(), False)
     ])
 
     # Transform station id's to locations
@@ -201,9 +203,8 @@ if __name__ == '__main__':
     # Calculate time weighted average, then flatten to a 
     time_weighted_temp = rdd_data\
         .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average)
-    
-    df = spark.createDataFrame(time_weighted_temp, schema).foreach(print)
+        .map(calc_weighted_average)\
+        .foreach(print)
 
     # Convert to DataFrame and save to cassandra
 
