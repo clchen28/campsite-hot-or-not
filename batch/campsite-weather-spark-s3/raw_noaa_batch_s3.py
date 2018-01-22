@@ -2,6 +2,7 @@ import sys
 import json
 import configparser
 import datetime
+from math import radians, sin, cos, sqrt, asin
 from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
@@ -121,14 +122,18 @@ def map_raw_to_station_measurements(data):
     :returns:    Dict with values corresponding to weather measurement info
     '''
     location = get_station_location(data)
+    if not location:
+        return []
+    USAF = parse_USAF(data)
+    WBAN = parse_WBAN(data)
     lat = float(location.get("lat", None))
     lon = float(location.get("lon", None))
     measurement_time = parse_time(data)
     closest_hour, delta_time = get_dt(data)
     temp = parse_temp(data)
     weight, weight_temp_prod = dt_to_weights_and_weightprods(delta_time, temp)
-    return ((closest_hour, lat, lon),
-        (weight_temp_prod, weight))
+    return [((closest_hour, lat, lon, USAF + "|" + WBAN),
+        (weight_temp_prod, weight))]
 
 def sum_weight_and_prods(val1, val2):
     '''
@@ -151,14 +156,69 @@ def calc_weighted_average(rdd):
     measurement_hour = rdd[0][0]
     lat = rdd[0][1]
     lon = rdd[0][2]
-    return (measurement_hour, lat, lon, weighted_avg)
+    location_id = rdd[0][3]
+    return (measurement_hour, lat, lon, location_id, weighted_avg)
+
+def calc_distance(lat1, lon1, lat2, lon2):
+    '''
+    Calculates Haversine distance between two lat/lon coordinates
+    From https://rosettacode.org/wiki/Haversine_formula#Python
+    :param lat1: Latitude of first point
+    :param lon1: Longitude of first point
+    :param lat2: Latitude of second point
+    :param lon2: Longitude of second point
+    :returns:    Float, distance between two points in km
+    '''
+    R = 6372.8 # Earth radius in kilometers
+
+    delta_lat = radians(lat2 - lat1)
+    delta_lon = radians(lon2 - lon1)
+    lat1 = radians(lat1)
+    lat2 = radians(lat2)
+
+    a = sin(delta_lat / 2.0) ** 2 + cos(lat1) * cos(lat2) * sin(delta_lon / 2.0) ** 2
+    c = 2 * asin(sqrt(a))
+
+    return R * c
+
+def station_to_campsite(rdd):
+    '''
+    Takes RDD with weather station reading and measurement time, and returns
+    several RDDs for readings transformed to nearest campsites.
+    :param rdd: RDD of weather station readings
+    :returns:   RDDs of weather station reading transformed to nearest
+                nearest campsites. Returns empty RDD if there are no
+                nearby campsites.
+    '''
+    # Returns a list of nearby campsites
+    # Each campsite has keys of lat, lon, facilityId, legacyFacilityId, and name
+    campsites = STATION_LOCATIONS.get(rdd[3]).get("nearby_campgrounds")
+    if len(campsites) == 0:
+        return []
+    measurement_hour = rdd[0]
+    station_lat = rdd[1]
+    station_lon = rdd[2]
+    station_id = rdd[3]
+    temperature = rdd[4]
+    measurements = []
+    for campsite in campsites:
+        campsite_lat = campsite.get("lat", None)
+        campsite_lon = campsite.get("lon", None)
+        distance = calc_distance(station_lat, station_lon, campsite_lat, campsite_lon)
+        campsite_name = campsite.get("name", None)
+        weight = 1 / (float(distance) ** 2)
+        weight_temp_prod = temperature * float(weight)
+        measurements.append(((measurement_hour, campsite_lat, campsite_lon, campsite_name),
+            (weight_temp_prod, weight)))
+    return measurements
+
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read("s3_spark.cfg")
 
     # Make dict of station locations available to all nodes
-    STATION_LOCATIONS = get_station_locations_from_file("stations_latlon.json")
+    STATION_LOCATIONS = get_station_locations_from_file("stations_to_nearby_campgrounds.json")
 
     # SparkContext represents entry point to Spark cluster
     # Automatically determines master
@@ -170,7 +230,7 @@ if __name__ == '__main__':
 
     # TODO: Don't hardcode one object
     # Returns an RDD of strings
-    raw_data = sc.textFile(s3_bucket + "2016-1.txt")
+    raw_data = sc.textFile(s3_bucket + "2016-9.txt")
     # raw_data = sc.textFile("2015-short.txt")
 
     # Define schema
@@ -181,21 +241,30 @@ if __name__ == '__main__':
         StructField("weighted_avg", FloatType(), False)
     ])
 
+    # Calculate campsites that each weather station should have an effect on
+
     # Transform station id's to locations
     # Key is a tuple of time, lat, lon
     # Value is a tuple of time weights, and products of time weights and temp
-    rdd_data = raw_data.map(map_raw_to_station_measurements)
+    rdd_data = raw_data.flatMap(map_raw_to_station_measurements)
 
     # Calculate time weighted average, then flatten to a 
     time_weighted_temp = rdd_data\
         .reduceByKey(sum_weight_and_prods)\
+        .map(calc_weighted_average).cache()
+
+    # time_weighted_temp.foreach(print)
+
+    # Convert to DataFrame and save to cassandra
+    # df = spark.createDataFrame(time_weighted_temp, schema)
+
+    # Convert time-averaged station measurements to distance-weighted averages
+    # at campsites
+    campsite_rdd = time_weighted_temp.flatMap(station_to_campsite)\
+        .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average)\
         .foreach(print)
 
-    # Convert to DataFrame and save to cassandra
-
-    df = spark.createDataFrame(filtered_data, schema)
-        
 
     # Calculate time-weighted average temperatures and closest hour
     # df.select("window").rdd.map(closest_hour).toDF()
