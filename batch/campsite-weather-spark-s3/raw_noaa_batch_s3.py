@@ -9,7 +9,7 @@ from pyspark import SparkConf
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import window, sum
 from pyspark.sql.types import (StructType, StructField, FloatType,
-                               TimestampType, IntegerType)
+                               TimestampType, IntegerType, StringType)
 
 def get_station_locations_from_file(filename):
     '''
@@ -129,10 +129,11 @@ def map_raw_to_station_measurements(data):
     lat = float(location.get("lat", None))
     lon = float(location.get("lon", None))
     measurement_time = parse_time(data)
+    year = measurement_time.year
     closest_hour, delta_time = get_dt(data)
     temp = parse_temp(data)
     weight, weight_temp_prod = dt_to_weights_and_weightprods(delta_time, temp)
-    return [((closest_hour, lat, lon, USAF + "|" + WBAN),
+    return [((closest_hour, lat, lon, USAF + "|" + WBAN, year),
         (weight_temp_prod, weight))]
 
 def sum_weight_and_prods(val1, val2):
@@ -144,7 +145,7 @@ def sum_weight_and_prods(val1, val2):
     '''
     return (val1[0] + val2[0], val1[1] + val2[1])
 
-def calc_weighted_average(rdd):
+def calc_weighted_average_station(rdd):
     '''
     Given that the first value of the RDD is the sum of the weighted temps
     and that the second is the sum of the weights, calculates the
@@ -156,8 +157,26 @@ def calc_weighted_average(rdd):
     measurement_hour = rdd[0][0]
     lat = rdd[0][1]
     lon = rdd[0][2]
-    location_id = rdd[0][3]
-    return (measurement_hour, lat, lon, location_id, weighted_avg)
+    station_id = rdd[0][3]
+    year = rdd[0][4]
+    return (measurement_hour, lat, lon, station_id, year, weighted_avg)
+
+def calc_weighted_average_campsite(rdd):
+    '''
+    Given that the first value of the RDD is the sum of the weighted temps
+    and that the second is the sum of the weights, calculates the
+    weighted average and returns RDD with just this as the value.
+    :param rdd: RDD that contains weights and weighted temps
+    :returns:   RDD with value as the weighted average temp
+    '''
+    weighted_avg = rdd[1][0] / float(rdd[1][1])
+    measurement_hour = rdd[0][0]
+    lat = rdd[0][1]
+    lon = rdd[0][2]
+    campsite_id = rdd[0][3]
+    year = rdd[0][4]
+    campsite_name = rdd[0][5]
+    return (measurement_hour, lat, lon, campsite_id, year, campsite_name, weighted_avg)
 
 def calc_distance(lat1, lon1, lat2, lon2):
     '''
@@ -199,16 +218,18 @@ def station_to_campsite(rdd):
     station_lat = rdd[1]
     station_lon = rdd[2]
     station_id = rdd[3]
-    temperature = rdd[4]
+    year = rdd[4]
+    temperature = rdd[5]
     measurements = []
     for campsite in campsites:
         campsite_lat = campsite.get("lat", None)
         campsite_lon = campsite.get("lon", None)
         distance = calc_distance(station_lat, station_lon, campsite_lat, campsite_lon)
         campsite_name = campsite.get("name", None)
+        campsite_id = campsite.get("facilityId", None)
         weight = 1 / (float(distance) ** 2)
         weight_temp_prod = temperature * float(weight)
-        measurements.append(((measurement_hour, campsite_lat, campsite_lon, campsite_name),
+        measurements.append(((measurement_hour, campsite_lat, campsite_lon, campsite_id, year, campsite_name),
             (weight_temp_prod, weight)))
     return measurements
 
@@ -226,57 +247,59 @@ if __name__ == '__main__':
     spark = SparkSession(sc)
     conf = SparkConf().set("spark.cassandra.connection.host",
         config.get("cassandra_cluster", "host"))
-    s3_bucket = config.get("s3", "bucket_url")
 
-    # TODO: Don't hardcode one object
+    s3_bucket = config.get("s3", "bucket_url")
+    s3_object = config.get("s3", "object")
+
     # Returns an RDD of strings
-    raw_data = sc.textFile(s3_bucket + "2016-9.txt")
-    # raw_data = sc.textFile("2015-short.txt")
+    raw_data = sc.textFile(s3_bucket + s3_object)
 
     # Define schema
-    schema = StructType([
-        StructField("measurement_hour", TimestampType(), False),
+    station_schema = StructType([
+        StructField("measurement_time", TimestampType(), False),
         StructField("lat", FloatType(), False),
         StructField("lon", FloatType(), False),
-        StructField("weighted_avg", FloatType(), False)
+        StructField("station_id", StringType(), False),
+        StructField("year", IntegerType(), False),
+        StructField("temp", FloatType(), False)
+    ])
+
+    campsite_schema = StructType([
+        StructField("calculation_time", TimestampType(), False),
+        StructField("lat", FloatType(), False),
+        StructField("lon", FloatType(), False),
+        StructField("campsite_id", IntegerType(), False),
+        StructField("year", IntegerType(), False),
+        StructField("name", StringType(), False),
+        StructField("temp", FloatType(), False)
     ])
 
     # Calculate campsites that each weather station should have an effect on
 
     # Transform station id's to locations
-    # Key is a tuple of time, lat, lon
-    # Value is a tuple of time weights, and products of time weights and temp
     rdd_data = raw_data.flatMap(map_raw_to_station_measurements)
 
-    # Calculate time weighted average, then flatten to a 
+    # Calculate time weighted average, then flatten
     time_weighted_temp = rdd_data\
         .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average).cache()
+        .map(calc_weighted_average_station).cache()
 
-    # time_weighted_temp.foreach(print)
-
-    # Convert to DataFrame and save to cassandra
-    # df = spark.createDataFrame(time_weighted_temp, schema)
-
-    # Convert time-averaged station measurements to distance-weighted averages
-    # at campsites
-    campsite_rdd = time_weighted_temp.flatMap(station_to_campsite)\
-        .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average)\
-        .foreach(print)
-
-
-    # Calculate time-weighted average temperatures and closest hour
-    # df.select("window").rdd.map(closest_hour).toDF()
-
-    # Group measurements into hourly buckets
-    # filtered_data.groupBy(window("measurement_time", "30 minutes")).show(30)
-
-    # TODO: Remember to multiply by 1000 again when inserting into cassandra
-    '''
+    stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
     .write\
     .format("org.apache.spark.sql.cassandra")\
     .mode('append')\
     .options(table="readings", keyspace="weather_stations")\
     .save()
-    '''
+
+    # Convert time-averaged station measurements to distance-weighted averages
+    # at campsites
+    campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
+        .reduceByKey(sum_weight_and_prods)\
+        .map(calc_weighted_average_campsite)
+
+    campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
+    .write\
+    .format("org.apache.spark.sql.cassandra")\
+    .mode('append')\
+    .options(table="calculations", keyspace="campsites")\
+    .save()
