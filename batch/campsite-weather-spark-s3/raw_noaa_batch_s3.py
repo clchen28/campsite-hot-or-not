@@ -161,8 +161,8 @@ def calc_weighted_average_station(rdd):
     '''
     weighted_avg = rdd[1][0] / float(rdd[1][1])
     measurement_hour = rdd[0][0]
-    lat = rdd[0][1]
-    lon = rdd[0][2]
+    lat = float(rdd[0][1])
+    lon = float(rdd[0][2])
     station_id = rdd[0][3]
     return (measurement_hour, lat, lon, station_id, weighted_avg)
 
@@ -176,8 +176,8 @@ def calc_weighted_average_campsite(rdd):
     '''
     weighted_avg = rdd[1][0] / float(rdd[1][1])
     measurement_hour = rdd[0][0]
-    lat = rdd[0][1]
-    lon = rdd[0][2]
+    lat = float(rdd[0][1])
+    lon = float(rdd[0][2])
     campsite_id = rdd[0][3]
     campsite_name = rdd[0][4]
     return (measurement_hour, lat, lon, campsite_id, campsite_name, weighted_avg)
@@ -216,14 +216,14 @@ def station_to_campsite(rdd):
     if len(campsites) == 0:
         return []
     measurement_hour = rdd[0]
-    station_lat = rdd[1]
-    station_lon = rdd[2]
+    station_lat = float(rdd[1])
+    station_lon = float(rdd[2])
     station_id = rdd[3]
     temperature = rdd[4]
     measurements = []
     for campsite in campsites:
-        campsite_lat = campsite.get("lat", None)
-        campsite_lon = campsite.get("lon", None)
+        campsite_lat = float(campsite.get("lat", None))
+        campsite_lon = float(campsite.get("lon", None))
         distance = calc_distance(station_lat, station_lon, campsite_lat, campsite_lon)
         campsite_name = campsite.get("name", None)
         campsite_id = campsite.get("facilityId", None)
