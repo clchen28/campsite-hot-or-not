@@ -134,13 +134,12 @@ def map_raw_to_station_measurements(data):
     lat = float(location.get("lat", None))
     lon = float(location.get("lon", None))
     measurement_time = parse_time(data)
-    year = measurement_time.year
     closest_hour, delta_time = get_dt(data)
     temp = parse_temp(data)
     if not temp:
         return []
     weight, weight_temp_prod = dt_to_weights_and_weightprods(delta_time, temp)
-    return [((closest_hour, lat, lon, USAF + "|" + WBAN, year),
+    return [((closest_hour, lat, lon, USAF + "|" + WBAN),
         (weight_temp_prod, weight))]
 
 def sum_weight_and_prods(val1, val2):
@@ -165,8 +164,7 @@ def calc_weighted_average_station(rdd):
     lat = rdd[0][1]
     lon = rdd[0][2]
     station_id = rdd[0][3]
-    year = rdd[0][4]
-    return (measurement_hour, lat, lon, station_id, year, weighted_avg)
+    return (measurement_hour, lat, lon, station_id, weighted_avg)
 
 def calc_weighted_average_campsite(rdd):
     '''
@@ -181,9 +179,8 @@ def calc_weighted_average_campsite(rdd):
     lat = rdd[0][1]
     lon = rdd[0][2]
     campsite_id = rdd[0][3]
-    year = rdd[0][4]
-    campsite_name = rdd[0][5]
-    return (measurement_hour, lat, lon, campsite_id, year, campsite_name, weighted_avg)
+    campsite_name = rdd[0][4]
+    return (measurement_hour, lat, lon, campsite_id, campsite_name, weighted_avg)
 
 def calc_distance(lat1, lon1, lat2, lon2):
     '''
@@ -222,8 +219,7 @@ def station_to_campsite(rdd):
     station_lat = rdd[1]
     station_lon = rdd[2]
     station_id = rdd[3]
-    year = rdd[4]
-    temperature = rdd[5]
+    temperature = rdd[4]
     measurements = []
     for campsite in campsites:
         campsite_lat = campsite.get("lat", None)
@@ -233,7 +229,7 @@ def station_to_campsite(rdd):
         campsite_id = campsite.get("facilityId", None)
         weight = 1 / (float(distance) ** 2)
         weight_temp_prod = temperature * float(weight)
-        measurements.append(((measurement_hour, campsite_lat, campsite_lon, campsite_id, year, campsite_name),
+        measurements.append(((measurement_hour, campsite_lat, campsite_lon, campsite_id, campsite_name),
             (weight_temp_prod, weight)))
     return measurements
 
@@ -263,7 +259,6 @@ if __name__ == '__main__':
         StructField("lat", FloatType(), False),
         StructField("lon", FloatType(), False),
         StructField("station_id", StringType(), False),
-        StructField("year", IntegerType(), False),
         StructField("temp", FloatType(), False)
     ])
 
@@ -272,12 +267,9 @@ if __name__ == '__main__':
         StructField("lat", FloatType(), False),
         StructField("lon", FloatType(), False),
         StructField("campsite_id", IntegerType(), False),
-        StructField("year", IntegerType(), False),
         StructField("name", StringType(), False),
         StructField("temp", FloatType(), False)
     ])
-
-    # Calculate campsites that each weather station should have an effect on
 
     # Transform station id's to locations
     rdd_data = raw_data.flatMap(map_raw_to_station_measurements)
@@ -293,23 +285,16 @@ if __name__ == '__main__':
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_campsite).cache()
 
-    time_weighted_temp.foreach(print)
-    campsites_rdd.foreach(print)
+    stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
+        .write\
+        .format("org.apache.spark.sql.cassandra")\
+        .mode('append')\
+        .options(table="readings", keyspace="weather_stations")\
+        .save()
 
-    # stations_df = spark.createDataFrame(time_weighted_temp, station_schema).show()
-    '''
-    .write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="readings", keyspace="weather_stations")\
-    .save()
-    '''
-
-    # campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema).show()
-    '''
-    .write\
-    .format("org.apache.spark.sql.cassandra")\
-    .mode('append')\
-    .options(table="calculations", keyspace="campsites")\
-    .save()
-    '''
+    campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
+        .write\
+        .format("org.apache.spark.sql.cassandra")\
+        .mode('append')\
+        .options(table="calculations", keyspace="campsites")\
+        .save()
