@@ -15,8 +15,7 @@ def add_to_redis(campground, r_client):
 	if not lat or not lon or not name or not facilityId:
 		return
 
-	value = str(lon) + " " + str(lat) + " " + str(facilityId)
-	r_client.geoadd("campgrounds", lon, lat, facilityId)
+	r_client.geoadd("campgrounds", lon, lat, str(facilityId) + "|" + name)
 	r_client.set(facilityId, name)
 
 if __name__ == "__main__":
