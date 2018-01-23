@@ -3,23 +3,22 @@ CREATE KEYSPACE IF NOT EXISTS weather_stations WITH REPLICATION = { 'class' : 'S
 CREATE KEYSPACE IF NOT EXISTS campsites WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 2 };
 
 CREATE TABLE weather_stations.readings (
-    station_id string,
-    year int,
+    station_id varchar,
     measurement_time timestamp,
     lat float,
     lon float,
     temp float,
-    PRIMARY KEY ((station_id, year), measurement_time)
+    PRIMARY KEY (station_id, measurement_time)
 ) WITH CLUSTERING ORDER BY (measurement_time DESC);
 
 CREATE TABLE campsites.calculations (
-	campsite_id int,
-	year int,
-	calculation_time timestamp,
-	lat float,
-	lon float,
-	temp float,
-	PRIMARY KEY ((campsite_id, year), calculation_time)
+  campsite_id int,
+  calculation_time timestamp,
+  lat float,
+  lon float,
+  temp float,
+  name varchar,
+  PRIMARY KEY (campsite_id, calculation_time)
 ) WITH CLUSTERING ORDER BY (calculation_time DESC);
 
 CREATE CUSTOM INDEX weather_readings_index ON weather_stations.readings ()
@@ -29,8 +28,7 @@ WITH OPTIONS = {
    'schema': '{
       fields: {
          station_id: {type: "string"},
-         year: {type: "integer"},
-         measurement_time: {type: "timestamp"},
+         measurement_time: {type: "date", pattern: "yyyy-MM-dd HH:mm"},
          place: {type: "geo_point", latitude: "lat", longitude: "lon"}
       }
    }'
@@ -43,8 +41,7 @@ WITH OPTIONS = {
    'schema': '{
       fields: {
          campsite_id: {type: "integer"},
-         year: {type: "integer"},
-         calculation_time: {type: "timestamp"},
+         calculation_time: {type: "date", pattern: "yyyy-MM-dd HH:mm"},
          place: {type: "geo_point", latitude: "lat", longitude: "lon"}
       }
    }'
