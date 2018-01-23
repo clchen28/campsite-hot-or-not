@@ -61,9 +61,14 @@ def parse_temp(data):
     :param data: Raw string data from S3
     :returns:    Float of temperature reading
     '''
+    raw_temp = data[87:92]
+    if raw_temp == "+9999":
+        return None
     try:
-        temp = float(data[87:92]) / 10.0
+        temp = float(raw_temp) / 10.0
     except:
+        return None
+    if temp == 999.9:
         return None
     return temp
 
@@ -132,6 +137,8 @@ def map_raw_to_station_measurements(data):
     year = measurement_time.year
     closest_hour, delta_time = get_dt(data)
     temp = parse_temp(data)
+    if not temp:
+        return []
     weight, weight_temp_prod = dt_to_weights_and_weightprods(delta_time, temp)
     return [((closest_hour, lat, lon, USAF + "|" + WBAN, year),
         (weight_temp_prod, weight))]
@@ -189,15 +196,12 @@ def calc_distance(lat1, lon1, lat2, lon2):
     :returns:    Float, distance between two points in km
     '''
     R = 6372.8 # Earth radius in kilometers
-
     delta_lat = radians(lat2 - lat1)
     delta_lon = radians(lon2 - lon1)
     lat1 = radians(lat1)
     lat2 = radians(lat2)
-
     a = sin(delta_lat / 2.0) ** 2 + cos(lat1) * cos(lat2) * sin(delta_lon / 2.0) ** 2
     c = 2 * asin(sqrt(a))
-
     return R * c
 
 def station_to_campsite(rdd):
@@ -232,7 +236,6 @@ def station_to_campsite(rdd):
         measurements.append(((measurement_hour, campsite_lat, campsite_lon, campsite_id, year, campsite_name),
             (weight_temp_prod, weight)))
     return measurements
-
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
@@ -284,22 +287,29 @@ if __name__ == '__main__':
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_station).cache()
 
-    stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
+    # Convert time-averaged station measurements to distance-weighted averages
+    # at campsites
+    campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
+        .reduceByKey(sum_weight_and_prods)\
+        .map(calc_weighted_average_campsite).cache()
+
+    time_weighted_temp.foreach(print)
+    campsites_rdd.foreach(print)
+
+    # stations_df = spark.createDataFrame(time_weighted_temp, station_schema).show()
+    '''
     .write\
     .format("org.apache.spark.sql.cassandra")\
     .mode('append')\
     .options(table="readings", keyspace="weather_stations")\
     .save()
+    '''
 
-    # Convert time-averaged station measurements to distance-weighted averages
-    # at campsites
-    campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
-        .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average_campsite)
-
-    campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
+    # campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema).show()
+    '''
     .write\
     .format("org.apache.spark.sql.cassandra")\
     .mode('append')\
     .options(table="calculations", keyspace="campsites")\
     .save()
+    '''
