@@ -14,7 +14,7 @@ function initMap() {
               callback(xobj.responseText);
             }
       };
-      xobj.send(null);  
+      xobj.send(null);
     }
 
    loadJSON(function(response) {
