@@ -2,9 +2,22 @@
 <html>
   <head>
     <title>{{title}}</title>
+    <style>
+    #map {
+      height: 100%;
+    }
+    html, body {
+      height: 90%;
+      width: 90%;
+      margin: 0;
+      padding: 0;
+    }
+      </style>
     <link rel='stylesheet' href='/stylesheets/style.css' />
   </head>
   <body>
     {{{body}}}
+  <script src="/markerclusterer/src/markerclusterer.js" type="text/javascript"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA2dlJuyQR_lyryvIF9yKbRzCyWXkitqPs&callback=initMap"></script>
   </body>
 </html>
