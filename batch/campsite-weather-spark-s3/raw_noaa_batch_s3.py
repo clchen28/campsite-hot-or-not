@@ -277,13 +277,13 @@ if __name__ == '__main__':
     # Calculate time weighted average, then flatten
     time_weighted_temp = rdd_data\
         .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average_station).cache()
+        .map(calc_weighted_average_station).persist()
 
     # Convert time-averaged station measurements to distance-weighted averages
     # at campsites
     campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
         .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average_campsite).cache()
+        .map(calc_weighted_average_campsite)
 
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
         .write\
