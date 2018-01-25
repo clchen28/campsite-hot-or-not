@@ -279,18 +279,18 @@ if __name__ == '__main__':
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_station).persist()
 
-    # Convert time-averaged station measurements to distance-weighted averages
-    # at campsites
-    campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
-        .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average_campsite)
-
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
         .options(table="readings", keyspace="weather_stations")\
         .save()
+
+    # Convert time-averaged station measurements to distance-weighted averages
+    # at campsites
+    campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
+        .reduceByKey(sum_weight_and_prods)\
+        .map(calc_weighted_average_campsite)
 
     campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
         .write\
