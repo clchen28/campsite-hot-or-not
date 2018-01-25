@@ -75,7 +75,7 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
   var nearestHoursObj = nearestHours(date)
   if (nearestHoursObj.firstNearestHour === nearestHoursObj.secondNearestHour) {
     // Just need one query in this case
-    campsitesClient.execute(query, [facilityId, date])
+    campsitesClient.execute(query, [facilityId, req.body.date])
     .then(result => {
       console.log(result);
     });

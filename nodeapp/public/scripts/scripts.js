@@ -28,7 +28,7 @@ function initMap() {
   // console.log($('#datetimepicker13').datetimepicker('date'));
 
   // TODO: How to detect if there is an open infoWindow?
-  $('#datetimepicker13').on('change.datetimepicker', function(e){console.log(e);})
+  // $('#datetimepicker13').on('change.datetimepicker', function(e){console.log(e);})
   var map = new google.maps.Map(document.getElementById('map'), {
     zoom: 3,
     center: {lat: 37.425713, lng: -122.1704554}
