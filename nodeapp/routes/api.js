@@ -66,7 +66,7 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
   // Returns the weather for a campsite at a given date/time
   // Assume that date is in milliseconds after epoch
   
-  // TODO: Error handling here in case these queries are not available
+  // TODO: Error handling here in case these portions of the body are not available
   // TODO: Make it only possible to query for hourly data
   var date = new Date(req.body.date);
   var facilityId = req.body.facilityId;

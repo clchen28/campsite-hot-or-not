@@ -6,7 +6,7 @@ var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
 var index = require('./routes/index');
-var users = require('./routes/users');
+var api = require('./routes/api');
 
 var app = express();
 
@@ -18,6 +18,8 @@ app.set('view engine', 'hbs');
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger('dev'));
 app.use('/bootstrap', express.static(__dirname + '/node_modules/bootstrap/dist'));
+app.use('/jquery', express.static(__dirname + '/node_modules/jquery/dist'));
+app.use('/moment', express.static(__dirname + '/node_modules/moment/'));
 app.use('/markerclusterer', express.static(__dirname + '/node_modules/gmaps-marker-clusterer'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));

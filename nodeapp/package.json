@@ -16,6 +16,7 @@
     "gmaps-marker-clusterer": "^1.2.2",
     "hbs": "~4.0.1",
     "jquery": "^3.3.1",
+    "moment": "^2.20.1",
     "morgan": "~1.9.0",
     "popper.js": "^1.12.9",
     "redis": "^2.8.0",
