@@ -70,15 +70,19 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
   // TODO: Make it only possible to query for hourly data
   var milliseconds_date = parseInt(req.body.date);
   var date = new Date(milliseconds_date);
-  var facilityId = req.body.facilityId;
+  var facilityId = parseInt(req.body.facilityId);
   
   const query = "SELECT * FROM campsites.calculations WHERE campsite_id = ? AND calculation_time = ?";
   var nearestHoursObj = nearestHours(date)
   if (nearestHoursObj.firstDelta === 0) {
     // Just need one query in this case
-    campsitesClient.execute(query, [facilityId, milliseconds_date])
+    campsitesClient.execute(query, [facilityId, milliseconds_date],
+{prepare: true})
     .then(result => {
       console.log(result);
+    },
+    error => {
+      console.log(error);
     });
   }
   
