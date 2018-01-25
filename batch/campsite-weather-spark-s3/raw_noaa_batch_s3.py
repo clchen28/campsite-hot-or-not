@@ -279,6 +279,7 @@ if __name__ == '__main__':
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_station).persist()
 
+    """
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
         .sort(["station_id", "measurement_time"], ascending=[True, False])\
         .write\
@@ -286,17 +287,39 @@ if __name__ == '__main__':
         .mode('append')\
         .options(table="readings", keyspace="weather_stations")\
         .save()
+    """
 
+    station_save_options = {"table": "readings",
+        "keyspace": "weather_stations",
+        "spark.cassandra.output.batch.grouping.key": "replica_set"}
+    stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
+        .write\
+        .format("org.apache.spark.sql.cassandra")\
+        .mode('append')\
+        .options(**station_save_options)\
+        .save()
+        
     # Convert time-averaged station measurements to distance-weighted averages
     # at campsites
     campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_campsite)
 
+    """
     campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
         .sort(["campsite_id", "calculation_time"], ascending=[True, False])\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
         .options(table="calculations", keyspace="campsites")\
+        .save()
+    """
+    campsite_save_options = {"table": "calculations",
+        "keyspace": "campsites",
+        "spark.cassandra.output.batch.grouping.key": "replica_set"}
+    campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
+        .write\
+        .format("org.apache.spark.sql.cassandra")\
+        .mode('append')\
+        .options(**campsite_save_options)\
         .save()
