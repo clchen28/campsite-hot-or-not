@@ -68,7 +68,7 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
   
   // TODO: Error handling here in case these portions of the body are not available
   // TODO: Make it only possible to query for hourly data
-  var milliseconds_date = Integer.parseInt(req.body.date);
+  var milliseconds_date = parseInt(req.body.date);
   var date = new Date(milliseconds_date);
   var facilityId = req.body.facilityId;
   
