@@ -280,6 +280,7 @@ if __name__ == '__main__':
         .map(calc_weighted_average_station).persist()
 
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
+        .sort(["station_id", "measurement_time"], ascending=[True, False])\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
@@ -293,6 +294,7 @@ if __name__ == '__main__':
         .map(calc_weighted_average_campsite)
 
     campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
+        .sort(["campsite_id", "calculation_time"], ascending=[True, False])\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
