@@ -78,7 +78,7 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
     // Just need one query in this case
     campsitesClient.execute(query, [facilityId, milliseconds_date], {prepare: true})
     .then(result => {
-      var resultData = {facilityId: result[0].campsite_id, temp: result[0].campsite_id.temp};
+      var resultData = {facilityId: result[0].campsite_id, temp: result[0].temp};
       res.json(resultData);
     },
     error => {
