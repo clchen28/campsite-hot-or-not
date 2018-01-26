@@ -1,3 +1,7 @@
+function degCtoDegF(degC) {
+  return degC * 1.8 + 32;
+}
+
 function queryWeatherAtMarker(marker, map, time) {
   let facilityId = marker.facilityId;
   let data = {facilityId: facilityId, date: time};
@@ -7,9 +11,8 @@ function queryWeatherAtMarker(marker, map, time) {
     data: data,
     success: function(resp) {
       // TODO: Put the response data into the info window
-      console.log(resp);
-      marker.results = resp.temp;
-      let contentString = marker.contentString + "<br />" + marker.results.toString();
+      marker.results = degCtoDegF(resp.temp);
+      let contentString = marker.contentString + "<br />" + marker.results.toPrecision(2);
       var infowindow = new google.maps.InfoWindow({
         content: contentString
       });

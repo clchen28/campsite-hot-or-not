@@ -74,17 +74,20 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
   const query = "SELECT * FROM campsites.calculations WHERE campsite_id = ? AND calculation_time = ?";
   var nearestHoursObj = nearestHours(date)
   // TODO: Handle the case where there is no response, i.e., no rows that match
-  if (nearestHoursObj.firstDelta === 0) {
-    // Just need one query in this case
-    campsitesClient.execute(query, [facilityId, milliseconds_date], {prepare: true})
-    .then(result => {
-      var resultData = {facilityId: result.rows[0].campsite_id, temp: result.rows[0].temp};
-      res.json(resultData);
-    },
-    error => {
-      next(error);
-    });
+  if (nearestHoursObj.firstDelta != 0) {
+    if (nearestHoursObj.firstDelta >= nearestHoursObj.secondDelta) {
+      milliseconds_date = nearestHourObj.secondNearestHour.getUnixTime() * 1000;
+    }
   }
+  
+  campsitesClient.execute(query, [facilityId, milliseconds_date], {prepare: true})
+  .then(result => {
+    var resultData = {facilityId: result.rows[0].campsite_id, temp: result.rows[0].temp};
+    res.json(resultData);
+  })
+  .catch(error => {
+    next(error);
+  });
 });
 
 module.exports = router;
