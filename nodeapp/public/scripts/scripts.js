@@ -12,7 +12,7 @@ function queryWeatherAtMarker(marker, map, time) {
     success: function(resp) {
       // TODO: Put the response data into the info window
       marker.results = degCtoDegF(resp.temp);
-      let contentString = marker.contentString + "<br />" + marker.results.toPrecision(2);
+      let contentString = marker.contentString + "<br />" + marker.results.toPrecision(2) + " F";
       var infowindow = new google.maps.InfoWindow({
         content: contentString
       });
