@@ -290,7 +290,8 @@ if __name__ == '__main__':
     """
 
     station_save_options = {"table": "readings",
-        "keyspace": "weather_stations"}
+        "keyspace": "weather_stations",
+        "spark.cassandra.output.batch.grouping.key": "replica_set"}
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
         .sortWithinPartitions("station_id")\
         .write\
@@ -314,7 +315,8 @@ if __name__ == '__main__':
         .save()
     """
     campsite_save_options = {"table": "calculations",
-        "keyspace": "campsites"}
+        "keyspace": "campsites",
+        "spark.cassandra.output.batch.grouping.key": "replica_set"}
     campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
         .sortWithinPartitions("campsite_id")\
         .write\
