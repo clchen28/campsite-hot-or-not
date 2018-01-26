@@ -8,9 +8,8 @@ function queryWeatherAtMarker(marker, map, time) {
     success: function(resp) {
       // TODO: Put the response data into the info window
       console.log(resp);
-      // marker.results = data.temp;
-      // let contentString = marker.contentString + "<br />" + marker.results.toString();
-      let contentString = marker.contentString;
+      marker.results = resp.temp;
+      let contentString = marker.contentString + "<br />" + marker.results.toString();
       var infowindow = new google.maps.InfoWindow({
         content: contentString
       });
@@ -28,6 +27,7 @@ function initMap() {
       keepInvalid: false
   });
   // TODO: How to detect if there is an open infoWindow?
+  // TODO: Way to remove data from markers on change in datetime?
   // $('#datetimepicker13').on('change.datetimepicker', function(e){console.log(e);})
   var map = new google.maps.Map(document.getElementById('map'), {
     zoom: 3,

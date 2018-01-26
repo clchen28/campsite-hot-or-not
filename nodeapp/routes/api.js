@@ -3,10 +3,9 @@ var router = express.Router();
 require('dotenv').config()
 var h1 = process.env.CASSANDRA_HOST1;
 var h2 = process.env.CASSANDRA_HOST2;
-var h3 = process.env.CASSANDRA_HOST3;
 const cassandra = require('cassandra-driver');
-const campsitesClient = new cassandra.Client({ contactPoints: [h1, h2, h3], keyspace: 'campsites' });
-const stationsClient = new cassandra.Client({ contactPoints: [h1, h2, h3], keyspace: 'weather_stations' });
+const campsitesClient = new cassandra.Client({ contactPoints: [h1, h2], keyspace: 'campsites' });
+const stationsClient = new cassandra.Client({ contactPoints: [h1, h2], keyspace: 'weather_stations' });
 
 function nearestHours(date) {
   /**
@@ -79,8 +78,8 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
     // Just need one query in this case
     campsitesClient.execute(query, [facilityId, milliseconds_date], {prepare: true})
     .then(result => {
-      console.log(result.rows[0]);
       var resultData = {facilityId: result[0].campsite_id, temp: result[0].campsite_id.temp};
+      res.json(resultData);
     },
     error => {
       next(error);
