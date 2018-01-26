@@ -85,8 +85,6 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
       next(error);
     });
   }
-  
-  res.render('index');
 });
 
 module.exports = router;
