@@ -1,13 +1,16 @@
-function queryWeatherAtMarker(marker, time) {
+function queryWeatherAtMarker(marker, map, time) {
   let facilityId = marker.facilityId;
   let data = {facilityId: facilityId, date: time};
   $.ajax({
     type: "POST",
     url: "/api/get_hist_campsite_weather",
     data: data,
-    success: function(data) {
-      marker.results = data.temp;
-      let contentString = marker.contentString + "<br />" + marker.results.toString();
+    success: function(resp) {
+      // TODO: Put the response data into the info window
+      console.log(resp);
+      // marker.results = data.temp;
+      // let contentString = marker.contentString + "<br />" + marker.results.toString();
+      let contentString = marker.contentString;
       var infowindow = new google.maps.InfoWindow({
         content: contentString
       });
@@ -24,9 +27,6 @@ function initMap() {
       sideBySide: true,
       keepInvalid: false
   });
-  // TODO: Use this to get the date
-  // console.log($('#datetimepicker13').datetimepicker('date'));
-
   // TODO: How to detect if there is an open infoWindow?
   // $('#datetimepicker13').on('change.datetimepicker', function(e){console.log(e);})
   var map = new google.maps.Map(document.getElementById('map'), {
@@ -73,11 +73,10 @@ function initMap() {
 
         marker.addListener('click', function() {
           // TODO: Also execute a request for the weather here
-          // TODO: Get the time to pass to the following function call
 
           // Get milliseconds after UNIX epoch
           var time = $('#datetimepicker13').datetimepicker('date').unix() * 1000;
-          queryWeatherAtMarker(marker, time);
+          queryWeatherAtMarker(marker, map, time);
         });
 
         return marker;
