@@ -18,6 +18,13 @@ function queryWeatherAtMarker(marker, map, time) {
       });
       infowindow.open(map, marker);
     },
+    error: function(resp) {
+      let contentString = marker.contentString;
+      var infowindow = new google.maps.InfoWindow({
+        content: contentString
+      });
+      infowindow.open(map, marker);
+    },
     dataType: "json"
   });
 }
