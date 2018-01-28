@@ -2,19 +2,70 @@ function degCtoDegF(degC) {
   return degC * 1.8 + 32;
 }
 
-function queryWeatherAtMarker(marker, map, time) {
+function queryWeatherAtMarker(marker, map, month, day, year) {
   let facilityId = marker.facilityId;
-  let data = {facilityId: facilityId, date: time};
+  let data = {facilityId: facilityId,
+    lat: marker.getPosition().lat(),
+    lng: marker.getPosition().lng(),
+    month: month,
+    day: day,
+    year: year};
   $.ajax({
     type: "POST",
     url: "/api/get_hist_campsite_weather",
     data: data,
     success: function(resp) {
-      // TODO: Put the response data into the info window
       marker.results = degCtoDegF(resp.temp);
-      let contentString = marker.contentString + "<br />" + marker.results.toPrecision(2) + " F";
+      let contentString = marker.contentString;
+      contentString += '<br /><h3 style="text-align:center">' + year.toString();
+      contentString += '-' + month.toString() + '-' + day.toString() + '</h3>';
+      contentString += '<br /><div id="chart-' + facilityId.toString() + '"></div>';
+      var times = resp.times;
+      times.unshift('Time');
+      var temps = resp.temps;
+      temps.unshift('Temperature (F)');
       var infowindow = new google.maps.InfoWindow({
         content: contentString
+      });
+      google.maps.event.addListener(infowindow, 'domready', function() {
+        var chart = c3.generate({
+          bindto: '#chart-' + facilityId.toString(),
+          size: {
+            height: 240,
+            width: 480
+          },
+          data: {
+            x: 'Time',
+            xFormat: '%Y-%m-%d %H:%M',
+            columns: [times, temps]
+          },
+          axis: {
+            x: {
+                type: 'timeseries',
+                tick: {format: '%H:%M'},
+                label: {
+                  text: 'Time',
+                  position: 'outer-center'
+                }
+            },
+            y: {
+              label: {
+                text: 'Temperature (F)',
+                position: 'outer-middle'
+              }
+            }
+          },
+          legend: {
+            hide: true
+          },
+          tooltip: {
+            format: {
+              value: function (value, ratio, id, index) {
+                return value.toPrecision(3);
+              }
+            }
+          }
+        });
       });
       infowindow.open(map, marker);
     },
@@ -34,65 +85,65 @@ function initMap() {
       defaultDate: "2016-01-24T19:00:00Z",
       inline: true,
       sideBySide: true,
-      keepInvalid: false
+      keepInvalid: false,
+      format: "MM/dd/YYYY"
   });
-  // TODO: How to detect if there is an open infoWindow?
-  // TODO: Way to remove data from markers on change in datetime?
-  // $('#datetimepicker13').on('change.datetimepicker', function(e){console.log(e);})
   var map = new google.maps.Map(document.getElementById('map'), {
     zoom: 3,
     center: {lat: 37.425713, lng: -122.1704554}
   });
-    var campgrounds =  {};
+  var campgrounds =  {};
 
-    function loadJSON(callback) {   
-      var xobj = new XMLHttpRequest();
-      xobj.overrideMimeType("application/json");
-      xobj.open('GET', '/campgrounds_info.json', true);
-      xobj.onreadystatechange = function () {
-            if (xobj.readyState == 4 && xobj.status == "200") {
-              callback(xobj.responseText);
-            }
-      };
-      xobj.send(null);
-    }
+  function loadJSON(callback) {   
+    var xobj = new XMLHttpRequest();
+    xobj.overrideMimeType("application/json");
+    xobj.open('GET', '/campgrounds_info.json', true);
+    xobj.onreadystatechange = function () {
+          if (xobj.readyState == 4 && xobj.status == "200") {
+            callback(xobj.responseText);
+          }
+    };
+    xobj.send(null);
+  }
 
-   loadJSON(function(response) {
-      // Parse JSON string into object
-      campgrounds = JSON.parse(response);
-      campgrounds = campgrounds.campgrounds;
-      var markers = campgrounds.map(function(campground, i) {
-        var contentString = "<h1>" + campground.name + "</h1><br />";
-        contentString += "ID: " + campground.facilityId.toString() + "<br />";
-        contentString += "Position: " + campground.position.lat.toString() + ", ";
-        contentString += campground.position.lng.toString();
-        /*
-        var infowindow = new google.maps.InfoWindow({
-          content: contentString
-        });
-        */
-
-        var marker = new google.maps.Marker({
-          position: campground.position,
-          map: map,
-          name: campground.name,
-          facilityId: campground.facilityId,
-          contentString: contentString,
-          results: ""
-        });
-
-        marker.addListener('click', function() {
-          // TODO: Also execute a request for the weather here
-
-          // Get milliseconds after UNIX epoch
-          var time = $('#datetimepicker13').datetimepicker('date').unix() * 1000;
-          queryWeatherAtMarker(marker, map, time);
-        });
-
-        return marker;
+  loadJSON(function(response) {
+    // Parse JSON string into object
+    campgrounds = JSON.parse(response);
+    campgrounds = campgrounds.campgrounds;
+    var markers = campgrounds.map(function(campground, i) {
+      var contentString = "<h1>" + campground.name + "</h1><br />";
+      contentString += "ID: " + campground.facilityId.toString() + "<br />";
+      contentString += "Position: " + campground.position.lat.toPrecision(5) + ", ";
+      contentString += campground.position.lng.toPrecision(5);
+      /*
+      var infowindow = new google.maps.InfoWindow({
+        content: contentString
       });
-      // Add a marker clusterer to manage the markers.
-      var markerCluster = new MarkerClusterer(map, markers,
-      {imagePath: '/markerclusterer/images/m'});
+      */
+
+      var marker = new google.maps.Marker({
+        position: campground.position,
+        map: map,
+        name: campground.name,
+        facilityId: campground.facilityId,
+        contentString: contentString,
+        results: ""
+      });
+
+      marker.addListener('click', function() {
+        let date = $('#datetimepicker13').datetimepicker('date');
+        
+        // JS Date objects have months indexed from 0 (0 to 11)
+        let month = date.month() + 1;
+        let day = date.date();
+        let year = date.year();
+        queryWeatherAtMarker(marker, map, month, day, year);
+      });
+
+      return marker;
     });
+    // Add a marker clusterer to manage the markers.
+    var markerCluster = new MarkerClusterer(map, markers,
+    {imagePath: '/markerclusterer/images/m'});
+  });
   }

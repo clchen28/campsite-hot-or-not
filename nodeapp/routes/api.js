@@ -1,92 +1,90 @@
 var express = require('express');
 var router = express.Router();
-require('dotenv').config()
-var h1 = process.env.CASSANDRA_HOST1;
-var h2 = process.env.CASSANDRA_HOST2;
+require('dotenv').config();
+var moment = require('moment');
+var request = require('request');
+const h1 = process.env.CASSANDRA_HOST1;
+const h2 = process.env.CASSANDRA_HOST2;
 const cassandra = require('cassandra-driver');
 const campsitesClient = new cassandra.Client({ contactPoints: [h1, h2], keyspace: 'campsites' });
 const stationsClient = new cassandra.Client({ contactPoints: [h1, h2], keyspace: 'weather_stations' });
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
-function nearestHours(date) {
+function getDataFromRow(row, offsetFromUTC) {
   /**
-   * Finds the hours that bound a date, i.e., the hour before and hour after.
+   * Returns an object with temperature, and time with offset subtracted
    *
-   * @param {Date} date - A date object for which to find the bounding hours
-   * @returns {Object} - An object with a firstNearestHour and secondNearestHour
-   *                     attribute, which are Date objects that correspond to
-   *                     the hour before and the hour after the given date. If
-   *                     the given date falls on an hour, these are identical.
-   *                     Also returns firstDelta and secondDelta, which are the
-   *                     number of minutes of the given Date to the first hour
-   *                     and the second hour.
+   * @param {Object} row - A row from the Cassandra response
+   * @param {int} offsetFromUTC - The offset, in seconds, from UTC for the timezone
+   * @returns {Object} - An object with temperature and time with offset subtracted
    */
-  var year = date.getUTCFullYear();
-  var month = date.getUTCMonth();
-  var day = date.getUTCDate();
-  var hours = date.getUTCHours();
-  var minutes = date.getUTCMinutes();
-  
-  var secondNearestHour = 0;
-  if (date.getMinutes() === 0) {
-    secondNearestHour = date.getUTCHours()
-  }
-  else {
-    secondNearestHour = date.getUTCHours() + 1
-  }
-  var firstDelta = date.getMinutes();
-  var secondDelta = 60 - date.getUTCMinutes();
-  if (secondDelta === 60) {
-    secondDelta = 0;
-  }
-
-  var nearestHoursObj = {};
-  nearestHoursObj.firstNearestHour = new Date(Date.UTC(year, month, day, hours, 0));
-  nearestHoursObj.secondNearestHour = new Date(Date.UTC(year, month, day, secondNearestHour, 0));
-  nearestHoursObj.firstDelta = firstDelta;
-  nearestHoursObj.secondDelta = secondDelta;
-  return nearestHoursObj
+  let time = moment.utc(row.calculation_time);
+  let temp = degCtoDegF(row.temp);
+  time.add(offsetFromUTC, "seconds");
+  return {time: time.format("YYYY-MM-DD HH:mm"), temp: temp}
 }
 
-function calcTimeWeightedAverage(nearestHourObj, temp1, temp2) {
-  /**
-   * Calculates time weighted average temperature
-   *
-   * @param {Object} nearestHourObj - Object from nearestHours function
-   * @param {Float} temp1 - Temperature at first hour
-   * @param {Float} temp2 - Temperature at second hour
-   * @returns {Float} - Time weighted average temperature
-   */
-  var numerator = temp1 * nearestHourObj.firstDelta + temp1 * nearestHourObj.secondDelta;
-  var denominator = nearestHourObj.firstDelta + nearestHourObj.secondDelta;
-  return numerator / parseFloat(denominator);
+function degCtoDegF(degC) {
+  return degC * 1.8 + 32;
 }
 
 router.post('/get_hist_campsite_weather', function(req, res, next) {
   // Returns the weather for a campsite at a given date/time
-  // Assume that date is in milliseconds after epoch
-  
-  // TODO: Error handling here in case these portions of the body are not available
-  // TODO: Make it only possible to query for hourly data
-  var milliseconds_date = parseInt(req.body.date);
-  var date = new Date(milliseconds_date);
   var facilityId = parseInt(req.body.facilityId);
   
-  const query = "SELECT * FROM campsites.calculations WHERE campsite_id = ? AND calculation_time = ?";
-  var nearestHoursObj = nearestHours(date)
-  // TODO: Handle the case where there is no response, i.e., no rows that match
-  if (nearestHoursObj.firstDelta != 0) {
-    if (nearestHoursObj.firstDelta >= nearestHoursObj.secondDelta) {
-      milliseconds_date = nearestHourObj.secondNearestHour.getUnixTime() * 1000;
-    }
-  }
+  var month = req.body.month;
+  var day = req.body.day;
+  var year = req.body.year;
   
-  campsitesClient.execute(query, [facilityId, milliseconds_date], {prepare: true})
-  .then(result => {
-    var resultData = {facilityId: result.rows[0].campsite_id, temp: result.rows[0].temp};
-    res.json(resultData);
-  })
-  .catch(error => {
-    next(error);
+  if (month.length === 1) {
+    month = "0" + month;
+  }
+  if (day.length === 1) {
+    day = "0" + day;
+  }
+
+  var date = moment.utc(year+ "-" + month + "-" + day);
+
+  var baseURL = "https://maps.googleapis.com/maps/api/timezone/json?";
+  var location = "location=" + req.body.lat + "," + req.body.lng;
+  var key = "key=" + GOOGLE_MAPS_API_KEY;
+  var timestamp = "timestamp=" + date.unix().toString();
+  var url = baseURL + location + "&" + key + "&" + timestamp;
+
+  request.get(url, (error, response, body) => {
+    if (error) {
+      next(error);
+    }
+    var timezoneResponse = JSON.parse(body);
+    var offsetFromUTC = parseInt(timezoneResponse.dstOffset) + parseInt(timezoneResponse.rawOffset);
+    date.subtract(offsetFromUTC, 'seconds');
+    var milliseconds_start_date = date.unix() * 1000;
+  
+    // Getting the time, in milliseconds, that is 24 hours later
+    var milliseconds_end_date = milliseconds_start_date + (24 * 60 * 60 * 1000);
+    
+    const query = "SELECT * FROM campsites.calculations WHERE campsite_id = ? "
+      + "AND calculation_time >= ? "
+      + "AND calculation_time < ?";
+    
+    campsitesClient.execute(query, [facilityId,
+      milliseconds_start_date,
+      milliseconds_end_date], {prepare: true})
+    .then(result => {
+      var arrayLength = result.rows.length;
+      var times = [];
+      var temps = [];
+      for (var i = 0; i < arrayLength; i++) {
+        var dataFromRow = getDataFromRow(result.rows[i], offsetFromUTC);
+        times.push(dataFromRow.time);
+        temps.push(dataFromRow.temp);
+      }
+      var resultData = {times: times, temps: temps};
+      res.json(resultData);
+    })
+    .catch(error => {
+      next(error);
+    });
   });
 });
 
