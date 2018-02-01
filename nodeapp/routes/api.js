@@ -36,6 +36,7 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
   var day = req.body.day;
   var year = req.body.year;
   
+  // Zero-padding for month and day
   if (month.length === 1) {
     month = "0" + month;
   }
@@ -43,8 +44,11 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
     day = "0" + day;
   }
 
-  var date = moment.utc(year+ "-" + month + "-" + day);
+  var date = moment.utc(year + "-" + month + "-" + day);
 
+  // Constructing query string for Google Maps API
+  // Determines timezone offset from UTC, given a location and date
+  // Date is needed to account for DST
   var baseURL = "https://maps.googleapis.com/maps/api/timezone/json?";
   var location = "location=" + req.body.lat + "," + req.body.lng;
   var key = "key=" + GOOGLE_MAPS_API_KEY;
@@ -57,6 +61,11 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
     }
     var timezoneResponse = JSON.parse(body);
     var offsetFromUTC = parseInt(timezoneResponse.dstOffset) + parseInt(timezoneResponse.rawOffset);
+
+    // Data in database is stored in UTC. Data that should be displayed on
+    // frontend is from midnight to midnight for the selected date, for the
+    // appropriate timezone for the selected campsite, based on time of year
+    // and location. Need to subtract out offset from UTC for database query
     date.subtract(offsetFromUTC, 'seconds');
     var milliseconds_start_date = date.unix() * 1000;
   
@@ -71,6 +80,8 @@ router.post('/get_hist_campsite_weather', function(req, res, next) {
       milliseconds_start_date,
       milliseconds_end_date], {prepare: true})
     .then(result => {
+      // Create an array of times and temperatures to send to the frontend,
+      // for the given campsite
       var arrayLength = result.rows.length;
       var times = [];
       var temps = [];
