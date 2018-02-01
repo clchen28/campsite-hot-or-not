@@ -7,7 +7,6 @@ from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import window, sum
 from pyspark.sql.types import (StructType, StructField, FloatType,
                                TimestampType, IntegerType, StringType)
 
@@ -279,46 +278,26 @@ if __name__ == '__main__':
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_station).persist()
 
-    """
-    stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
-        .sort(["station_id", "measurement_time"], ascending=[True, False])\
-        .write\
-        .format("org.apache.spark.sql.cassandra")\
-        .mode('append')\
-        .options(table="readings", keyspace="weather_stations")\
-        .save()
-    """
-
     station_save_options = {"table": "readings",
-        "keyspace": "weather_stations",
-        "spark.cassandra.output.batch.grouping.key": "replica_set"}
+        "keyspace": "weather_stations"}
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
-        .sortWithinPartitions("station_id")\
+        .sort("station_id")\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
         .options(**station_save_options)\
         .save()
+    
     # Convert time-averaged station measurements to distance-weighted averages
     # at campsites
     campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_campsite)
-
-    """
-    campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
-        .sort(["campsite_id", "calculation_time"], ascending=[True, False])\
-        .write\
-        .format("org.apache.spark.sql.cassandra")\
-        .mode('append')\
-        .options(table="calculations", keyspace="campsites")\
-        .save()
-    """
+    
     campsite_save_options = {"table": "calculations",
-        "keyspace": "campsites",
-        "spark.cassandra.output.batch.grouping.key": "replica_set"}
+        "keyspace": "campsites"}
     campsites_df = spark.createDataFrame(campsites_rdd, campsite_schema)\
-        .sortWithinPartitions("campsite_id")\
+        .sort("campsite_id")\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
