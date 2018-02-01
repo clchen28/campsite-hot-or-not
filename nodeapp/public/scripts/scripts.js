@@ -1,7 +1,3 @@
-function degCtoDegF(degC) {
-  return degC * 1.8 + 32;
-}
-
 function queryWeatherAtMarker(marker, map, month, day, year) {
   let facilityId = marker.facilityId;
   let data = {facilityId: facilityId,
@@ -10,23 +6,30 @@ function queryWeatherAtMarker(marker, map, month, day, year) {
     month: month,
     day: day,
     year: year};
+
   $.ajax({
     type: "POST",
     url: "/api/get_hist_campsite_weather",
     data: data,
     success: function(resp) {
-      marker.results = degCtoDegF(resp.temp);
       let contentString = marker.contentString;
+
+      // Add date to info window
       contentString += '<br /><h3 style="text-align:center">' + year.toString();
       contentString += '-' + month.toString() + '-' + day.toString() + '</h3>';
       contentString += '<br /><div id="chart-' + facilityId.toString() + '"></div>';
+
+      // Get times and temperatures from backend response
       var times = resp.times;
       times.unshift('Time');
       var temps = resp.temps;
       temps.unshift('Temperature (F)');
+
       var infowindow = new google.maps.InfoWindow({
         content: contentString
       });
+
+      // Generate time-series plot and bind to DOM when infoWindow opens
       google.maps.event.addListener(infowindow, 'domready', function() {
         var chart = c3.generate({
           bindto: '#chart-' + facilityId.toString(),
@@ -81,6 +84,7 @@ function queryWeatherAtMarker(marker, map, month, day, year) {
 }
 
 function initMap() {
+  // Initialize the date picker
   $('#datetimepicker13').datetimepicker({
       defaultDate: "2016-01-24T19:00:00Z",
       inline: true,
@@ -88,12 +92,15 @@ function initMap() {
       keepInvalid: false,
       format: "MM/dd/YYYY"
   });
+
+  // Initialize map of campgrounds
   var map = new google.maps.Map(document.getElementById('map'), {
     zoom: 3,
     center: {lat: 37.425713, lng: -122.1704554}
   });
   var campgrounds =  {};
 
+  // Obtain campground locations
   function loadJSON(callback) {   
     var xobj = new XMLHttpRequest();
     xobj.overrideMimeType("application/json");
@@ -106,6 +113,7 @@ function initMap() {
     xobj.send(null);
   }
 
+  // Place map pins for each campground
   loadJSON(function(response) {
     // Parse JSON string into object
     campgrounds = JSON.parse(response);
@@ -115,21 +123,18 @@ function initMap() {
       contentString += "ID: " + campground.facilityId.toString() + "<br />";
       contentString += "Position: " + campground.position.lat.toPrecision(5) + ", ";
       contentString += campground.position.lng.toPrecision(5);
-      /*
-      var infowindow = new google.maps.InfoWindow({
-        content: contentString
-      });
-      */
 
+      // Create pin and store campground attributes within Marker object
       var marker = new google.maps.Marker({
         position: campground.position,
         map: map,
         name: campground.name,
         facilityId: campground.facilityId,
         contentString: contentString,
-        results: ""
       });
 
+      // Add event listener to open up info window and query backend for
+      // weather data on click
       marker.addListener('click', function() {
         let date = $('#datetimepicker13').datetimepicker('date');
         
@@ -144,6 +149,6 @@ function initMap() {
     });
     // Add a marker clusterer to manage the markers.
     var markerCluster = new MarkerClusterer(map, markers,
-    {imagePath: '/markerclusterer/images/m'});
+      {imagePath: '/markerclusterer/images/m'});
   });
-  }
+}
