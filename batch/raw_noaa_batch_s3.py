@@ -260,14 +260,6 @@ if __name__ == '__main__':
     raw_data = sc.textFile(s3_bucket + s3_object)
 
     # Define schema
-    station_schema = StructType([
-        StructField("measurement_time", TimestampType(), False),
-        StructField("lat", FloatType(), False),
-        StructField("lon", FloatType(), False),
-        StructField("station_id", StringType(), False),
-        StructField("temp", FloatType(), False)
-    ])
-
     campsite_schema = StructType([
         StructField("calculation_time", TimestampType(), False),
         StructField("lat", FloatType(), False),
@@ -277,18 +269,21 @@ if __name__ == '__main__':
         StructField("temp", FloatType(), False)
     ])
 
+    station_schema = StructType([
+        StructField("measurement_time", TimestampType(), False),
+        StructField("lat", FloatType(), False),
+        StructField("lon", FloatType(), False),
+        StructField("station_id", StringType(), False),
+        StructField("weight_temp_prod", FloatType(), False),
+        StructField("weight", FloatType(), False)
+    ])
+
     # Transform station id's to locations
-    df_data = raw_data.flatMap(map_raw_to_station_measurements).toDF()
-    return {
-        "measurement_time": closest_hour,
-        "lat": lat,
-        "lon": lon,
-        "station_id": USAF + "|" + WBAN,
-        "weight_temp_prod": weight_temp_prod,
-        "weight": weight
-    }
+    df_data = raw_data.flatMap(map_raw_to_station_measurements)
+
     # Calculate time weighted average, then flatten
-    time_weighted_temp = df_data\
+    time_weighted_temp = spark\
+        .createDataFrame(df_data, station_schema)\
         .groupBy("station_id", "measurement_time")\
         .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"), F.sum("weight").alias("weight_sum"))\
         .show(1000)
