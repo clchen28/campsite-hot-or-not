@@ -279,14 +279,13 @@ if __name__ == '__main__':
         "keyspace": "weather_stations"}
     time_weighted_temp = spark\
         .createDataFrame(df_data, station_schema)\
-        .select(*)\
         .repartition(96, "station_id")\
-        .groupBy("station_id", "measurement_time")\
+        .groupBy("station_id", "lat", "lon", "measurement_time")\
         .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"),
             F.sum("weight").alias("weight_sum"))\
         .withColumn("temp", (F.col("weight_temp_prod_sum") /
             F.col("weight_sum")))\
-        .select("station_id", "measurement_time", "lat", "lon", "temp")\
+        .select(F.col("station_id"), F.col("measurement_time"), F.col("lat"), F.col("lon"), F.col("temp"))\
         .write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
