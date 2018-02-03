@@ -7,6 +7,7 @@ from pytz import timezone
 from pyspark import SparkContext
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
 from pyspark.sql.types import (StructType, StructField, FloatType,
                                TimestampType, IntegerType, StringType)
 
@@ -138,8 +139,14 @@ def map_raw_to_station_measurements(data):
     if not temp:
         return []
     weight, weight_temp_prod = dt_to_weights_and_weightprods(delta_time, temp)
-    return [((closest_hour, lat, lon, USAF + "|" + WBAN),
-        (weight_temp_prod, weight))]
+    return {
+        "measurement_time": closest_hour,
+        "lat": lat,
+        "lon": lon,
+        "station_id": USAF + "|" + WBAN,
+        "weight_temp_prod": weight_temp_prod,
+        "weight": weight
+    }
 
 def sum_weight_and_prods(val1, val2):
     '''
@@ -271,13 +278,22 @@ if __name__ == '__main__':
     ])
 
     # Transform station id's to locations
-    rdd_data = raw_data.flatMap(map_raw_to_station_measurements)
-
+    df_data = raw_data.flatMap(map_raw_to_station_measurements).toDF()
+    return {
+        "measurement_time": closest_hour,
+        "lat": lat,
+        "lon": lon,
+        "station_id": USAF + "|" + WBAN,
+        "weight_temp_prod": weight_temp_prod,
+        "weight": weight
+    }
     # Calculate time weighted average, then flatten
-    time_weighted_temp = rdd_data\
-        .reduceByKey(sum_weight_and_prods)\
-        .map(calc_weighted_average_station).persist()
+    time_weighted_temp = df_data\
+        .groupBy("station_id", "measurement_time")\
+        .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"), F.sum("weight").alias("weight_sum"))\
+        .show(1000)
 
+    """
     station_save_options = {"table": "readings",
         "keyspace": "weather_stations"}
     stations_df = spark.createDataFrame(time_weighted_temp, station_schema)\
@@ -287,9 +303,11 @@ if __name__ == '__main__':
         .mode('append')\
         .options(**station_save_options)\
         .save()
+    """
     
     # Convert time-averaged station measurements to distance-weighted averages
     # at campsites
+    """
     campsites_rdd = time_weighted_temp.flatMap(station_to_campsite)\
         .reduceByKey(sum_weight_and_prods)\
         .map(calc_weighted_average_campsite)
@@ -303,3 +321,4 @@ if __name__ == '__main__':
         .mode('append')\
         .options(**campsite_save_options)\
         .save()
+    """
