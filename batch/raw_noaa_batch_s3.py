@@ -139,14 +139,7 @@ def map_raw_to_station_measurements(data):
     if not temp:
         return []
     weight, weight_temp_prod = dt_to_weights_and_weightprods(delta_time, temp)
-    return {
-        "measurement_time": closest_hour,
-        "lat": lat,
-        "lon": lon,
-        "station_id": USAF + "|" + WBAN,
-        "weight_temp_prod": weight_temp_prod,
-        "weight": weight
-    }
+    return [(closest_hour, lat, lon, USAF + "|" + WBAN, weight_temp_prod, weight)]
 
 def sum_weight_and_prods(val1, val2):
     '''
