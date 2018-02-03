@@ -275,6 +275,8 @@ if __name__ == '__main__':
     df_data = raw_data.flatMap(map_raw_to_station_measurements)
 
     # Calculate time weighted average, then flatten
+    station_save_options = {"table": "readings",
+        "keyspace": "weather_stations"}
     time_weighted_temp = spark\
         .createDataFrame(df_data, station_schema)\
         .repartition(96, "station_id")\
@@ -284,7 +286,11 @@ if __name__ == '__main__':
         .withColumn("temp", (F.col("weight_temp_prod_sum") /
             F.col("weight_sum")))\
         .select("station_id", "measurement_time", "lat", "lon", "temp")\
-        .show(1000)
+        .write\
+        .format("org.apache.spark.sql.cassandra")\
+        .mode('append')\
+        .options(**station_save_options)\
+        .save()
 
     """
     station_save_options = {"table": "readings",
