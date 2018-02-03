@@ -283,6 +283,7 @@ if __name__ == '__main__':
             F.sum("weight").alias("weight_sum"))\
         .withColumn("temp", (F.col("weight_temp_prod_sum") /
             F.col("weight_sum")))\
+        .select("station_id", "measurement_time", "lat", "lon", "temp")\
         .show(1000)
 
     """
