@@ -277,9 +277,12 @@ if __name__ == '__main__':
     # Calculate time weighted average, then flatten
     time_weighted_temp = spark\
         .createDataFrame(df_data, station_schema)\
+        .repartition(96, "station_id")\
         .groupBy("station_id", "measurement_time")\
-        .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"), F.sum("weight").alias("weight_sum"))\
-        .withColumn("temp", F.col("weight_temp_prod_sum")/F.col("weight_sum"))\
+        .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"),
+            F.sum("weight").alias("weight_sum"))\
+        .withColumn("temp", (F.col("weight_temp_prod_sum") /
+            F.col("weight_sum")))\
         .show(1000)
 
     """
