@@ -279,7 +279,7 @@ if __name__ == '__main__':
         .createDataFrame(df_data, station_schema)\
         .groupBy("station_id", "measurement_time")\
         .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"), F.sum("weight").alias("weight_sum"))\
-        .withColumn("temp", time_weighted_temp["weight_temp_prod_sum"]/time_weighted_temp["weight_sum"])\
+        .withColumn("temp", F.col("weight_temp_prod_sum")/F.col("weight_sum"))\
         .show(1000)
 
     """
