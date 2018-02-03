@@ -279,6 +279,7 @@ if __name__ == '__main__':
         "keyspace": "weather_stations"}
     time_weighted_temp = spark\
         .createDataFrame(df_data, station_schema)\
+        .select(*)\
         .repartition(96, "station_id")\
         .groupBy("station_id", "measurement_time")\
         .agg(F.sum("weight_temp_prod").alias("weight_temp_prod_sum"),
