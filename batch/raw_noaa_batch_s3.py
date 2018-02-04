@@ -285,8 +285,13 @@ if __name__ == '__main__':
             F.sum("weight").alias("weight_sum"))\
         .withColumn("temp", (F.col("weight_temp_prod_sum") /
             F.col("weight_sum")))\
-        .select(F.col("station_id"), F.col("measurement_time"), F.col("lat"), F.col("lon"), F.col("temp"))\
-        .write\
+        .select(F.col("station_id"),
+            F.col("measurement_time"),
+            F.col("lat"),
+            F.col("lon"),
+            F.col("temp"))\
+        .persist()
+    time_weighted_temp.write\
         .format("org.apache.spark.sql.cassandra")\
         .mode('append')\
         .options(**station_save_options)\
