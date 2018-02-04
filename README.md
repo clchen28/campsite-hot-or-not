@@ -46,7 +46,11 @@ Since this is quite non-intuitive, there is interest in making modifications to 
 
 ## Directory Structure
 `batch` - PySpark code for performing calculations and saving to database
+
 `db_setup` - CQL commands to set up namespaces and tables in Cassandra
+
 `img` - Images for this README
+
 `nodeapp` - Code for web app
+
 `raw_file_scripts` - Assorted scripts for processing raw data
