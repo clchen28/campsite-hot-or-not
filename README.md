@@ -2,13 +2,11 @@
 A data pipeline to show calculated historical weather at U.S. campsites based on the nearest weather stations, using the 260 GB NOAA weather dataset, built during my time as a Data Engineering Fellow at Insight Data Science.
 
 ## Purpose / Use Cases
-The purpose is to build a data pipeline that will support a web application that will show both historic and realtime weather conditions at campsites. The NOAA weather dataset is a dataset that contains a weather summary for every day dating back several decades (260 GB). It contains weather conditions at every individual weather station, including temperature, wind conditions, and so on. There is also a list of all campsites in the U.S. (~4000).
+The purpose is to build a data pipeline that will support a web application that will show both historic and realtime weather conditions at campsites.
 
-The end product is a web application that allows a user to find the historical weather at a campsite for a specific day by choosing a campsite on a map.
+The end product is a web application that allows a user to find the historical weather at a campsite for a specific day by choosing a campsite on a map. The core project was to build out a data pipeline that would perform the data transformations needed to get the above functionality, store the data to a database, and to serve the web app.
 
-The core project was to build out a data pipeline that would perform the data transformations needed to get the above functionality, store the data to a database, and to serve the web app.
-
-Campsites are at different locations than weather stations, so in order to calculate the weather at a campsite, a weighted average from nearby weather stations needs to be calculated. The weight is a function of distance - closer weather stations should have a stronger effect on the calculation of the weather.
+Through my time working on this project, I discovered a bottleneck in the spark-cassandra-connector, which I alleviated in an unexpected way. This turned out to be the most interesting discovery I made during the course of the project. DataStax currently has an open JIRA issue, addressing ways to automatically alleviate this bottleneck.
 
 ## Architecture
 
@@ -23,7 +21,32 @@ Campsites are at different locations than weather stations, so in order to calcu
 ## Database
 **Cassandra**. The raw data from NOAA dates back two decades, and the end goal is to store hourly data, for both weather stations, and for campsites. This means that the data is time-series in nature. Cassandra's column-oriented architecture is a good fit for time-series data.
 
-## Engineering Challenge
-The selected implementation of the IDW Average algorithm presents an engineering challenge. This algorithm is two steps - finding the k nearest nodes from a campsite, and then calculating the weighted average. The brute force method of doing this is to, for each campsite and historical time, calculate the distance to all weather stations that have data available at that time, and then choose the 5 that have the shortest distance. There are also ways to optimize this algorithm.
+## Algorithm
+The NOAA weather dataset is a dataset that contains a weather summary for every day dating back two decades (260 GB). It contains weather conditions at every individual weather station for different times throughout the past two decades. There is also a list of all campsites in the U.S. (~4000). Campsites are at different locations than weather stations, so in order to calculate the weather at a campsite, a weighted average from nearby weather stations needs to be calculated. The weight is a function of distance - closer weather stations should have a stronger effect on the calculation of the weather.
 
-Another way to solve this is to use some type of data structure that will efficiently find the k nearest neighbors, such as a KD-tree. This would be a quite complex way to solve this problem very efficiently.
+In order to calculate the hourly weather at campsites, a two-part algorithm was employed. First, a time-weighted average was calculated to obtain hourly temperature at weather stations. Then, a distance-weighted average was calculated to obtain hourly temperature at campsites, based on nearby weather stations. Here is the formula:
+
+![Weighted Average Formula](https://raw.githubusercontent.com/CCInCharge/campsite-hot-or-not/master/img/formula.png "Weighted Average Formula")
+
+Here, weights are the inverse of time, or the inverse of distance. The p exponent can be used to scale how strongly the weighted average correlates with nearby (by time or distance) values.
+
+## Benchmarks
+
+When I ran a 26 GB subset of my data through the pipeline, the completion time was about 2 hours. 35 minutes of this was due to computation time, and 79 minutes was due to writing to database. This is quite slow, so I dug into why.
+
+The spark-cassandra-connector batches multiple rows for writing to database. There are several batching techniques, but it typically batches by partition key. In Cassandra, every row has a partition key, which determines which partition that row resides in on the Cassandra cluster.
+
+It turns out that by sorting the data on Cassandra partition key prior to insertion to database, we can increase our write speed by **3x**. Even though sorting results in extra computation time, the increase in write speed far outweighs the extra computation time. I found the same results when scaling up to a 260 GB dataset.
+
+![Runtime](https://raw.githubusercontent.com/CCInCharge/campsite-hot-or-not/master/img/runtime.png "Runtime")
+
+![Runtime on 260 GB](https://raw.githubusercontent.com/CCInCharge/campsite-hot-or-not/master/img/bigruntime.png "Runtime on 260 GB")
+
+Since this is quite non-intuitive, there is interest in making modifications to the spark-cassandra-cluster to automatically sort on partition key prior to saving to database, in certain situations. Spark Catalyst, the pre-optimizer for Spark that speeds up DataFrame operations, can be extended to implement this functionality.
+
+## Directory Structure
+`batch` - PySpark code for performing calculations and saving to database
+`db_setup` - CQL commands to set up namespaces and tables in Cassandra
+`img` - Images for this README
+`nodeapp` - Code for web app
+`raw_file_scripts` - Assorted scripts for processing raw data
