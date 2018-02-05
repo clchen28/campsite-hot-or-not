@@ -3,6 +3,8 @@ A data pipeline to show calculated historical weather at U.S. campsites based on
 
 [Link to Slides](https://docs.google.com/presentation/d/1gGlgV1YE199ZMC27SL9aNVAoPzZZmusbKoBV8IPybpw/edit?usp=sharing)
 
+[Link to Video](https://youtu.be/iovTOQ-mwmI)
+
 ## Purpose / Use Cases
 The purpose is to build a data pipeline that will support a web application that will show both historic and realtime weather conditions at campsites.
 
